@@ -19,7 +19,7 @@ class Inference:
         return [int(x) for x in boxes]
 
 if __name__ == "__main__":
-    inf = Inference("/Users/brianprzezdziecki/Research/Mechatronics/STREAM_AI/inference/best.onnx")
+    inf = Inference("/Users/brianprzezdziecki/Research/Mechatronics/STREAM_AI/inference_/best.onnx")
     img = cv2.imread("/Users/brianprzezdziecki/Research/Mechatronics/STREAM Tip Detection.v1i.yolov7pytorch/train/images/frame0-2_jpg.rf.7b747ceadcc5769eb532d29d9d9eb200.jpg")
     print(img.shape)
     box = inf.predict(img)
