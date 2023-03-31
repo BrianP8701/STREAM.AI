@@ -8,7 +8,7 @@ import cv2
 import threading
 import queue
 from constants import *
-from inference.inference import Inference
+from inference_.inference import Inference
 import random
 
 def draw(image_path, x, y, a, b):
