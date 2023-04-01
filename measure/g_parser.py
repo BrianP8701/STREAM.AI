@@ -125,7 +125,7 @@ def yolov8_correct(q, img_path, x, y, inference: Inference):
         xtip = int((box[0] + box[2])/2 + xadj)
         q.put(xtip-x)
 
-def tip_tracker(g_path, fps, mTp, sX, sY, bed, frame_path):
+def tip_tracker(g_path, fps, mTp, sX, sY, bed, frame_path, accel):
     with open(g_path, 'r') as f_gcode:
         data = f_gcode.read()
         data: list = data.split("\n")
@@ -148,10 +148,13 @@ def tip_tracker(g_path, fps, mTp, sX, sY, bed, frame_path):
     next_max_speed = 0.0
     frame = 0
     correction_clock = 0
+    thread_alarm = 120
     inf = Inference(YOLO_PATH)
     q = queue.Queue()
-    t = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
-    t.start() 
+    t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
+    t2 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
+    t1.start() 
+    t2.start()
         
     while next_g_index != -1:
         line, g_index = get_next_line(data, g_index)
@@ -186,7 +189,7 @@ def tip_tracker(g_path, fps, mTp, sX, sY, bed, frame_path):
         if final_velocity[2] >= 0 and next_max_velocity_vector[2] <= 0: final_velocity[2] = 0
         elif abs(final_velocity[2]) > abs(next_max_velocity_vector[2]): final_velocity[2] = next_max_velocity_vector[2]
         final_speed = magnitude(final_velocity)
-        time_for_move = how_long(abs(magnitude(position_vector)), abs(magnitude(curr_velocity_vector)), abs(final_speed), abs(max_speed), ACCELERATION) * TIME_K
+        time_for_move = how_long(abs(magnitude(position_vector)), abs(magnitude(curr_velocity_vector)), abs(final_speed), abs(max_speed), accel) * TIME_K
         
         frames_for_move = int(time_for_move * fps)
         x_pixel_speed_per_frame = (position_vector[0] / frames_for_move) * mTp
@@ -200,15 +203,15 @@ def tip_tracker(g_path, fps, mTp, sX, sY, bed, frame_path):
             pixel_locations.append(pixels)
             frame += 1
             correction_clock += 1
-            if correction_clock == 120:
-                t.join()
+            if correction_clock == thread_alarm:
+                t1.join()
                 correction_clock = 0
                 correction = q.get_nowait()
-                for tip_coords in pixel_locations[-120:]:
+                for tip_coords in pixel_locations[-thread_alarm:]:
                     tip_coords[0] += correction
                 pixels = [pixels[0], pixels[1]]
-                t = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
-                t.start() 
+                t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
+                t1.start() 
                 
             angles.append(angle_adjustment(bed_angle))
  
@@ -216,15 +219,29 @@ def tip_tracker(g_path, fps, mTp, sX, sY, bed, frame_path):
         pixel_locations.append(pixels.copy())
         frame += 1
         correction_clock += 1
-        if correction_clock == 120:
-                t.join()
+        if correction_clock == thread_alarm:
+                t1.join()
+                t2.join()
                 correction_clock = 0
-                correction = q.get_nowait()
-                for tip_coords in pixel_locations[-120:]:
-                    tip_coords[0] += correction
-                pixels = [pixels[0] + correction, pixels[1]]
-                t = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
-                t.start() 
+                correction1 = q.get_nowait()
+                correction2 = q.get_nowait()
+                # Temporal error
+                if(abs(correction1) < 5 and abs(correction2) >= 5 or abs(correction2) < 5 and abs(correction1) >= 5): 
+                    if(correction1 < correction2): accel *= 1.005
+                    else: accel *= 0.995
+                    thread_alarm = int(thread_alarm * 0.9)
+                elif(abs(correction1) >= 5 and abs(correction2) >= 5): 
+                    correction = int((correction1 + correction2) / 2)
+                    pixels = [pixels[0] + correction, pixels[1]]
+                    for tip_coords in pixel_locations[-thread_alarm:]:
+                        tip_coords[0] += correction
+                else:
+                    if(thread_alarm < 160): thread_alarm *= 1.1
+                
+                t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame-10) + '.jpg', pixel_locations[len(pixel_locations)-11][0], pixel_locations[len(pixel_locations)-11][1], inf))
+                t2 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
+                t1.start() 
+                t2.start()
         angles.append(angle_adjustment(bed_angle))
         
         curr_bed_position = destination_bed_position.copy()
@@ -268,7 +285,7 @@ def measure_diameter(video_path, g_code):
     cv2.destroyAllWindows()
 
 # Video 1
-tips, angles = tip_tracker("/Users/brianprzezdziecki/Research/Mechatronics/STREAM_AI/data/gcode1.gcode", 30, 15.45212638, 425, 405, [82.554, 82.099, 1.8], '/Users/brianprzezdziecki/Research/Mechatronics/data1/frame')
+tips, angles = tip_tracker("/Users/brianprzezdziecki/Research/Mechatronics/STREAM_AI/data/gcode1.gcode", 30, 15.45212638, 425, 405, [82.554, 82.099, 1.8], '/Users/brianprzezdziecki/Research/Mechatronics/data1/frame', ACCELERATION)
 # Video 2
 #tips, angles = tip_tracker("/Users/brianprzezdziecki/Research/Mechatronics/STREAM_AI/data/gcode2.gcode", 30, 14.45, 1108, 370, [120.857,110, 1.8], '/Users/brianprzezdziecki/Research/Mechatronics/data2/frame')
 
