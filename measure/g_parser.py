@@ -47,67 +47,48 @@ def get_next_line(data, index):
 
 # Calculates how long it will take to finish move in seconds
 def how_long(distance, curr_speed, final_speed, max_speed, acceleration):
-    if (max_speed**2 - curr_speed**2)/(2*acceleration) >= distance:
-        return (final_speed - curr_speed)/acceleration
-    s1 = (max_speed**2 - curr_speed**2)/(2*acceleration)
-    s2 = (max_speed**2 - final_speed**2)/(2*acceleration)
+    s1 = (max_speed**2 - curr_speed**2) / (2 * acceleration)
+    if s1 >= distance:
+        return (final_speed - curr_speed) / acceleration
+
+    s2 = (max_speed**2 - final_speed**2) / (2 * acceleration)
     s3 = distance - s1 - s2
-    t1 = (max_speed - curr_speed)/acceleration
-    t2 = (max_speed - final_speed)/acceleration
-    t3 = s3/max_speed
-    total_time = t1 + t2 + t3
-    return total_time
+    return (max_speed - curr_speed) / acceleration + s3 / max_speed + (max_speed - final_speed) / acceleration
 
 # Crops image in direction of angle. (For tracking the tip's extruded material)
 def crop_in_direction(tip, theta):
-    box = [tip[0]-10, tip[1]-10, tip[0]+10, tip[1]+10]
-    if(theta < 15 or theta > 345): box[2] = box[2] + 15
-    elif(theta < 75):
-        box[1] = box[1] - 15
-        box[2] = box[2] + 20
-    elif(theta < 105): box[1] = box[1] - 15
-    elif(theta < 165):
-        box[0] = box[0] - 15
-        box[1] = box[1] - 15
-    elif(theta < 195): box[0] = box[0] - 15
-    elif(theta < 255):
-        box[0] = box[0] - 15
-        box[3] = box[3] + 15
-    elif(theta < 285): box[3] = box[3] + 15
-    elif(theta < 345):
-        box[2] = box[2] + 15
-        box[3] = box[3] + 15
+    x, y = tip
+    box = [x - 10, y - 10, x + 10, y + 10]
+    delta = [(-15, 20), (0, -15), (-15, -15), (-15, 0), (-15, 15), (0, 15), (15, 15)]
+    conditions = [15 > theta or theta > 345, 75 > theta >= 15, 105 > theta >= 75, 165 > theta >= 105, 195 > theta >= 165, 255 > theta >= 195, 285 > theta >= 255, 345 > theta >= 285]
+
+    for i, cond in enumerate(conditions):
+        if cond:
+            if i == 0:
+                box[2] += 15
+            elif i in [2, 4, 6]:
+                box[0] += delta[i][0]
+                box[1] += delta[i][1]
+            else:
+                box[i] += delta[i][1]
+            break
+
     return box
 
 # Crops image around given point for given dimensions. Returns cropped image and x offset
 def crop_around(img: np.ndarray, X: int, Y: int, length: int, wid: int):
-    if X - wid/2 < 0: 
-        x = 0
-        a = wid
-    elif X + wid/2 > len(img[0]):
-        x = len(img[0]) - wid - 1
-        a = len(img[0]) - 1
-    else:
-        x = int(X - wid/2)
-        a = int(X + wid/2)
-    if Y - length/2 < 0:
-        y = 0
-        b = length
-    elif Y + length/2 > len(img):
-        y = len(img) - length - 1
-        b = len(img) - 1
-    else:
-        y = int(Y - length/2)
-        b = int(Y + length/2)
-    return img[y:b, x:a], x
+    x_bounds = (max(0, X - wid // 2), min(X + wid // 2, img.shape[1]))
+    y_bounds = (max(0, Y - length // 2), min(Y + length // 2, img.shape[0]))
+    return img[y_bounds[0]:y_bounds[1], x_bounds[0]:x_bounds[1]], x_bounds[0]
 
 # Makes some slight adjustments to calculated angle to account for parralax
 def angle_adjustment(theta):
     angle = ((theta + 180) % 360)
-    if(angle > 0 and angle < 180): angle = angle**2 * 0.00123457 + 0.7777777 * angle
-    if(angle == 270): angle = 265
-    angle = angle * math.pi / 180
-    return angle
+    if 0 < angle < 180:
+        angle = angle**2 * 0.00123457 + 0.7777777 * angle
+    if angle == 270:
+        angle = 265
+    return angle * math.pi / 180
 
 # Locates the exact location of tip using yolo, and adds result to queue. 
 # Ran concurrently with gcode parser.
