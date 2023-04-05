@@ -7,34 +7,22 @@ import numpy as np
 import cv2
 import threading
 import queue
-from constants import *
+from .constants import *
 from inference_.inference import Inference
 import random
+from . import Drawing as draw
+from typing import List, Tuple
 
-def draw(image_path, x, y, a, b):
-    image = cv2.imread(image_path)
-    cv2.rectangle(image, (x, y), (a, b), (255, 0, 0), 1)
-    return image
+def normalize(vector):
+    return vector / np.linalg.norm(vector)
 
-def custom_draw(image, x, y, a, b):
-    cv2.rectangle(image, (x, y), (a, b), (255, 0, 0), 1)
-    return image
-
-def draw_rectangle(image_path, x, y, a, b):
-    image = cv2.imread(image_path)
-    cv2.rectangle(image, (x, y), (a, b), (255, 0, 0), 1)
-    cv2.imshow('', image)
-    cv2.waitKey(10000)
-    
-def tip_line(img, theta, tip):
-    angle_vector = [math.cos(theta)*50, math.sin(theta)*50] 
-    angle_vector = [int(i) for i in angle_vector]
-    img = cv2.line(img, [int(tip[0]), int(tip[1])], [int(tip[0])+angle_vector[0], int(tip[1])-angle_vector[1]], (255, 0, 0), 3)
-    return img
+def magnitude(vector):
+    return np.linalg.norm(vector)
 
 def quadratic(a, b, c):
     return (-b + math.sqrt(b**2 - 4 * a * c)) / (2 * a)
 
+# Returns the next line of gcode in the file and the index of the line after
 def get_next_line(data, index):
     index += 1
     line_data = [-1, -1, -1, -1]
@@ -57,12 +45,7 @@ def get_next_line(data, index):
         index += 1
     return line_data, -1
 
-def normalize(vector):
-    return vector / np.linalg.norm(vector)
-
-def magnitude(vector):
-    return np.linalg.norm(vector)
-
+# Calculates how long it will take to finish move in seconds
 def how_long(distance, curr_speed, final_speed, max_speed, acceleration):
     if (max_speed**2 - curr_speed**2)/(2*acceleration) >= distance:
         return (final_speed - curr_speed)/acceleration
@@ -75,6 +58,7 @@ def how_long(distance, curr_speed, final_speed, max_speed, acceleration):
     total_time = t1 + t2 + t3
     return total_time
 
+# Crops image in direction of angle. (For tracking the tip's extruded material)
 def crop_in_direction(tip, theta):
     box = [tip[0]-10, tip[1]-10, tip[0]+10, tip[1]+10]
     if(theta < 15 or theta > 345): box[2] = box[2] + 15
@@ -95,7 +79,8 @@ def crop_in_direction(tip, theta):
         box[3] = box[3] + 15
     return box
 
-def crop_around(img, X, Y, length, wid):
+# Crops image around given point for given dimensions. Returns cropped image and x offset
+def crop_around(img: np.ndarray, X: int, Y: int, length: int, wid: int):
     if X - wid/2 < 0: 
         x = 0
         a = wid
@@ -116,7 +101,18 @@ def crop_around(img, X, Y, length, wid):
         b = int(Y + length/2)
     return img[y:b, x:a], x
 
-def yolov8_correct(q, img_path, x, y, inference: Inference):
+# Makes some slight adjustments to calculated angle to account for parralax
+def angle_adjustment(theta):
+    angle = ((theta + 180) % 360)
+    if(angle > 0 and angle < 180): angle = angle**2 * 0.00123457 + 0.7777777 * angle
+    if(angle == 270): angle = 265
+    angle = angle * math.pi / 180
+    return angle
+
+# Locates the exact location of tip using yolo, and adds result to queue. 
+# Ran concurrently with gcode parser.
+# Return 0 if no tip is found
+def yolov8_correct(q: queue.Queue, img_path: str, x: int, y: int, inference: Inference):
     img = cv2.imread(img_path)
     img, xadj = crop_around(img, x, y, 640, 640)
     box = inference.predict(img)
@@ -125,7 +121,7 @@ def yolov8_correct(q, img_path, x, y, inference: Inference):
         xtip = int((box[0] + box[2])/2 + xadj)
         q.put(xtip-x)
 
-def tip_tracker(g_path, fps, mTp, sX, sY, bed, frame_path, accel):
+def tip_tracker(g_path: str, fps: int, mTp: float, sX: int, sY: int, bed: Tuple[float, float, float], frame_path: str, accel: float) -> Tuple[List[int], List[float]]:
     with open(g_path, 'r') as f_gcode:
         data = f_gcode.read()
         data: list = data.split("\n")
@@ -201,20 +197,31 @@ def tip_tracker(g_path, fps, mTp, sX, sY, bed, frame_path, accel):
         for i in range(frames_for_move):
             pixels = [pixels[0] + x_pixel_speed_per_frame, pixels[1] - z_pixel_speed_per_frame]
             pixel_locations.append(pixels)
+            angles.append(angle_adjustment(bed_angle))
             frame += 1
             correction_clock += 1
             if correction_clock == thread_alarm:
                 t1.join()
+                t2.join()
                 correction_clock = 0
-                correction = q.get_nowait()
-                for tip_coords in pixel_locations[-thread_alarm:]:
-                    tip_coords[0] += correction
-                pixels = [pixels[0], pixels[1]]
-                t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
+                correction1 = q.get_nowait()
+                correction2 = q.get_nowait()
+                t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame-10) + '.jpg', pixel_locations[len(pixel_locations)-11][0], pixel_locations[len(pixel_locations)-11][1], inf))
+                t2 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
                 t1.start() 
-                
-            angles.append(angle_adjustment(bed_angle))
- 
+                t2.start()
+                # Temporal error
+                if(abs(correction1) < 5 and abs(correction2) >= 5 or abs(correction2) < 5 and abs(correction1) >= 5): 
+                    if(correction1 < correction2): accel *= 1.005
+                    else: accel *= 0.995
+                    thread_alarm = int(thread_alarm * 0.9)
+                # Spatial error
+                elif(abs(correction1) >= 5 and abs(correction2) >= 5): 
+                    correction = int((correction1 + correction2) / 2)
+                    for tip_coords in pixel_locations[-thread_alarm:]:
+                        tip_coords[0] += correction
+                else:
+                    if(thread_alarm < 150): thread_alarm = int(thread_alarm*1.05)
         pixels = final_pixel_position
         pixel_locations.append(pixels.copy())
         frame += 1
@@ -225,36 +232,27 @@ def tip_tracker(g_path, fps, mTp, sX, sY, bed, frame_path, accel):
                 correction_clock = 0
                 correction1 = q.get_nowait()
                 correction2 = q.get_nowait()
+                t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame-10) + '.jpg', pixel_locations[len(pixel_locations)-11][0], pixel_locations[len(pixel_locations)-11][1], inf))
+                t2 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
+                t1.start() 
+                t2.start()
                 # Temporal error
                 if(abs(correction1) < 5 and abs(correction2) >= 5 or abs(correction2) < 5 and abs(correction1) >= 5): 
                     if(correction1 < correction2): accel *= 1.005
                     else: accel *= 0.995
                     thread_alarm = int(thread_alarm * 0.9)
+                # Spatial error
                 elif(abs(correction1) >= 5 and abs(correction2) >= 5): 
                     correction = int((correction1 + correction2) / 2)
-                    pixels = [pixels[0] + correction, pixels[1]]
                     for tip_coords in pixel_locations[-thread_alarm:]:
                         tip_coords[0] += correction
                 else:
-                    if(thread_alarm < 160): thread_alarm *= 1.1
-                
-                t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame-10) + '.jpg', pixel_locations[len(pixel_locations)-11][0], pixel_locations[len(pixel_locations)-11][1], inf))
-                t2 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
-                t1.start() 
-                t2.start()
+                    if(thread_alarm < 150): thread_alarm = int(thread_alarm*1.05)
         angles.append(angle_adjustment(bed_angle))
-        
         curr_bed_position = destination_bed_position.copy()
         curr_velocity_vector = final_velocity.copy()
         
     return pixel_locations, angles
-
-def angle_adjustment(theta):
-    angle = ((theta + 180) % 360)
-    if(angle > 0 and angle < 180): angle = angle**2 * 0.00123457 + 0.7777777 * angle
-    if(angle == 270): angle = 265
-    angle = angle * math.pi / 180
-    return angle
 
 def measure_diameter(video_path, g_code):
     cam = cv2.VideoCapture(video_path)
@@ -268,7 +266,7 @@ def measure_diameter(video_path, g_code):
     while(True):
         ret,frame = cam.read()
         frame = np.dot(frame[...,:3], [0.299, 0.587, 0.114])
-        draw_rectangle("/Users/brianprzezdziecki/Research/Mechatronics/STREAM_AI/data/frame" + str(currentframe) + ".jpg", bounding_boxes[currentframe][0], bounding_boxes[currentframe][1], bounding_boxes[currentframe][2], bounding_boxes[currentframe][3])
+        draw.draw_rectangle("/Users/brianprzezdziecki/Research/Mechatronics/STREAM_AI/data/frame" + str(currentframe) + ".jpg", bounding_boxes[currentframe][0], bounding_boxes[currentframe][1], bounding_boxes[currentframe][2], bounding_boxes[currentframe][3])
         #time.sleep(3)
         print(bounding_boxes[currentframe])
         if ret:
@@ -284,30 +282,3 @@ def measure_diameter(video_path, g_code):
     cam.release()
     cv2.destroyAllWindows()
 
-# Video 1
-tips, angles = tip_tracker("/Users/brianprzezdziecki/Research/Mechatronics/STREAM_AI/data/gcode1.gcode", 30, 15.45212638, 425, 405, [82.554, 82.099, 1.8], '/Users/brianprzezdziecki/Research/Mechatronics/data1/frame', ACCELERATION)
-# Video 2
-#tips, angles = tip_tracker("/Users/brianprzezdziecki/Research/Mechatronics/STREAM_AI/data/gcode2.gcode", 30, 14.45, 1108, 370, [120.857,110, 1.8], '/Users/brianprzezdziecki/Research/Mechatronics/data2/frame')
-
-fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
-fps = 30
-video_filename = 'test_V3.avi'
-out = cv2.VideoWriter(video_filename, fourcc, fps, (1920, 1080))
-
-frame = 0
-
-while(frame < 7328):
-    bounding_box = crop_in_direction(tips[frame], angles[frame]*180/math.pi)
-    image = draw('/Users/brianprzezdziecki/Research/Mechatronics/data1/frame' + str(frame) + '.jpg', int(bounding_box[0]), int(bounding_box[1]), int(bounding_box[2]), int(bounding_box[3]))
-    image = tip_line(image, angles[frame], tips[frame])
-    cv2.putText(image, str(int(angles[frame]*180/math.pi)), (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
-    out.write(image)
-    frame = frame + 1
-    print(frame)
-
-out.release()
-
-# frame = 6764
-# draw_rectangle('/Users/brianprzezdziecki/Research/Mechatronics/data/frame' + str(frame) + '.jpg', int(tips[frame][0]-5), int(tips[frame][1]-5), int(tips[frame][0]+5), int(tips[frame][1]+5))
-
-print(len(tips))
