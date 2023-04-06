@@ -10,7 +10,7 @@ tips, angles = parser.tip_tracker("/Users/brianprzezdziecki/Research/Mechatronic
 #tips, angles = tip_tracker("/Users/brianprzezdziecki/Research/Mechatronics/STREAM_AI/data/gcode2.gcode", 30, 14.45, 1108, 370, [120.857,110, 1.8], '/Users/brianprzezdziecki/Research/Mechatronics/data2/frame')
 fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
 fps = 30
-video_filename = 'test_V3.avi'
+video_filename = 'test_V4.avi'
 out = cv2.VideoWriter(video_filename, fourcc, fps, (1920, 1080))
 
 frame = 0

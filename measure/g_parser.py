@@ -78,9 +78,25 @@ def crop_in_direction(tip: np.ndarray, theta: float) -> List[int]:
 
 # Crops image around given point for given dimensions. Returns cropped image and x offset
 def crop_around(img: np.ndarray, X: int, Y: int, length: int, wid: int) -> Tuple[np.ndarray, int]:
-    x_bounds = (int(max(0, X - wid // 2)), int(min(X + wid // 2, img.shape[1])))
-    y_bounds = (int(max(0, Y - length // 2)), int(min(Y + length // 2, img.shape[0])))
-    return img[y_bounds[0]:y_bounds[1], x_bounds[0]:x_bounds[1]], x_bounds[0]
+    if X - wid/2 < 0: 
+        x = 0
+        a = wid
+    elif X + wid/2 > len(img[0]):
+        x = len(img[0]) - wid - 1
+        a = len(img[0]) - 1
+    else:
+        x = int(X - wid/2)
+        a = int(X + wid/2)
+    if Y - length/2 < 0:
+        y = 0
+        b = length
+    elif Y + length/2 > len(img):
+        y = len(img) - length - 1
+        b = len(img) - 1
+    else:
+        y = int(Y - length/2)
+        b = int(Y + length/2)
+    return img[y:b, x:a], x
 
 # Makes some slight adjustments to calculated angle to account for parralax
 def angle_adjustment(theta: float) -> float:
@@ -133,15 +149,21 @@ def tip_tracker(
     next_destination_bed_position = np.array([bed[0], bed[1], bed[2]])
     max_speed = 0.0
     next_max_speed = 0.0
+    
     frame = 0
     correction_clock = 0
-    thread_alarm = 120
+    thread_alarm = MIN_THREAD_ALARM
+    total_correction = 0
+    # Contains previous x offsets based off yolov8 correction
+    spatial_offset_stack = []
+    temporal_offset_stack = []
+    # True - tracker is ahead, False - tracker is behind
+    temporal_direction_stack = []
+
     inf = Inference(YOLO_PATH)
     q = queue.Queue()
     t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
-    t2 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
     t1.start() 
-    t2.start()
         
     # Main Loop
     while next_g_index != -1:
@@ -182,66 +204,73 @@ def tip_tracker(
         frames_for_move = int(time_for_move * fps)
         if(frames_for_move != 0): 
             x_pixel_speed_per_frame = (position_vector[0] / frames_for_move) * mTp
-            final_pixel_position = [position_vector[0] * mTp + pixels[0], pixels[1] - position_vector[2] * mTp * 0.7]
             z_pixel_speed_per_frame = (position_vector[2] / frames_for_move) * mTp * 0.7
-        
+        final_pixel_position = [position_vector[0] * mTp + pixels[0], pixels[1] - position_vector[2] * mTp * 0.7]
+
         bed_angle = math.atan2(position_vector[1], position_vector[0]) * 180 / math.pi
         
         for i in range(frames_for_move):
             pixels = [pixels[0] + x_pixel_speed_per_frame, pixels[1] - z_pixel_speed_per_frame]
-            pixel_locations.append(pixels)
+            pixel_locations.append(pixels.copy())
             angles.append(angle_adjustment(bed_angle))
             frame += 1
             correction_clock += 1
             if correction_clock == thread_alarm:
                 t1.join()
-                t2.join()
                 correction_clock = 0
-                correction1 = q.get_nowait()
-                correction2 = q.get_nowait()
-                t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame-10) + '.jpg', pixel_locations[len(pixel_locations)-11][0], pixel_locations[len(pixel_locations)-11][1], inf))
-                t2 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
+                x_offset = q.get_nowait()
+                spatial_offset_stack.append(x_offset)
+                temporal_offset_stack.append(x_offset)
+                t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixel_locations[frame][0], pixel_locations[frame][1], inf))
                 t1.start() 
-                t2.start()
-                # Temporal error
-                if(abs(correction1) < 5 and abs(correction2) >= 5 or abs(correction2) < 5 and abs(correction1) >= 5): 
-                    if(correction1 < correction2): accel *= 1.005
-                    else: accel *= 0.995
-                    thread_alarm = int(thread_alarm * 0.9)
+                if spatial_offset_stack[-1] == 0: spatial_offset_stack.pop()
                 # Spatial error
-                elif(abs(correction1) >= 5 and abs(correction2) >= 5): 
-                    correction = int((correction1 + correction2) / 2)
-                    for tip_coords in pixel_locations[-thread_alarm:]:
-                        tip_coords[0] += correction
-                else:
-                    if(thread_alarm < 150): thread_alarm = int(thread_alarm*1.05)
+                if(len(spatial_offset_stack) == 2):
+                    offset1, offset2 = spatial_offset_stack.pop(), spatial_offset_stack.pop()
+                    if(offset1 < 0 and offset2 < 0 or offset1 > 0 and offset2 > 0):
+                        correction = int((offset1 + offset2) / 2)
+                        pixels[0] += correction
+                        for tip_coords in pixel_locations[-thread_alarm*2:]:
+                            tip_coords[0] += correction
+                        if(thread_alarm >= 160): thread_alarm -= 10
+                    else:
+                        if(thread_alarm < 300): thread_alarm += 10
+                # Temporal error
+                #if(abs(correction1) < 5 and abs(correction2) >= 5 or abs(correction2) < 5 and abs(correction1) >= 5): 
+                    #if(correction1 < correction2): accel *= 1.005
+                    #else: accel *= 0.995
+                    #thread_alarm = int(thread_alarm * 0.9)
+                
         pixels = final_pixel_position
+        angles.append(angle_adjustment(bed_angle))
         pixel_locations.append(pixels.copy())
         frame += 1
         correction_clock += 1
         if correction_clock == thread_alarm:
                 t1.join()
-                t2.join()
                 correction_clock = 0
-                correction1 = q.get_nowait()
-                correction2 = q.get_nowait()
-                t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame-10) + '.jpg', pixel_locations[len(pixel_locations)-11][0], pixel_locations[len(pixel_locations)-11][1], inf))
-                t2 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
+                x_offset = q.get_nowait()
+                spatial_offset_stack.append(x_offset)
+                temporal_offset_stack.append(x_offset)
+                t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixel_locations[frame][0], pixel_locations[frame][1], inf))
                 t1.start() 
-                t2.start()
-                # Temporal error
-                if(abs(correction1) < 5 and abs(correction2) >= 5 or abs(correction2) < 5 and abs(correction1) >= 5): 
-                    if(correction1 < correction2): accel *= 1.005
-                    else: accel *= 0.995
-                    thread_alarm = int(thread_alarm * 0.9)
+                if spatial_offset_stack[-1] == 0: spatial_offset_stack.pop()
                 # Spatial error
-                elif(abs(correction1) >= 5 and abs(correction2) >= 5): 
-                    correction = int((correction1 + correction2) / 2)
-                    for tip_coords in pixel_locations[-thread_alarm:]:
-                        tip_coords[0] += correction
-                else:
-                    if(thread_alarm < 150): thread_alarm = int(thread_alarm*1.05)
-        angles.append(angle_adjustment(bed_angle))
+                if(len(spatial_offset_stack) == 2):
+                    offset1, offset2 = spatial_offset_stack.pop(), spatial_offset_stack.pop()
+                    if(offset1 < 0 and offset2 < 0 or offset1 > 0 and offset2 > 0):
+                        correction = int((offset1 + offset2) / 2)
+                        pixels[0] += correction
+                        for tip_coords in pixel_locations[-thread_alarm*2:]:
+                            tip_coords[0] += correction
+                        if(thread_alarm >= 160): thread_alarm -= 10
+                    else:
+                        if(thread_alarm < 300): thread_alarm += 10
+                # Temporal error
+                #if(abs(correction1) < 5 and abs(correction2) >= 5 or abs(correction2) < 5 and abs(correction1) >= 5): 
+                    #if(correction1 < correction2): accel *= 1.005
+                    #else: accel *= 0.995
+                    #thread_alarm = int(thread_alarm * 0.9)
         curr_bed_position = destination_bed_position.copy()
         curr_velocity_vector = final_velocity.copy()
         
