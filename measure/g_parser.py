@@ -50,7 +50,6 @@ def how_long(distance: float, curr_speed: float, final_speed: float, max_speed: 
     s1 = (max_speed**2 - curr_speed**2) / (2 * acceleration)
     if s1 >= distance:
         return (final_speed - curr_speed) / acceleration
-
     s2 = (max_speed**2 - final_speed**2) / (2 * acceleration)
     s3 = distance - s1 - s2
     return (max_speed - curr_speed) / acceleration + s3 / max_speed + (max_speed - final_speed) / acceleration
@@ -101,11 +100,11 @@ def crop_around(img: np.ndarray, X: int, Y: int, length: int, wid: int) -> Tuple
 # Makes some slight adjustments to calculated angle to account for parralax
 def angle_adjustment(theta: float) -> float:
     angle = ((theta + 180) % 360)
-    if 0 < angle < 180:
-        angle = angle**2 * 0.00123457 + 0.7777777 * angle
-    if angle == 270:
-        angle = 265
-    return angle * math.pi / 180
+    #if 0 < angle < 180:
+        #angle = angle**2 * 0.00123457 + 0.7777777 * angle
+    #if angle == 270:
+        #angle = 265
+    return angle
 
 # Locates the exact location of tip using yolo, and adds result to queue. 
 # Ran concurrently with gcode parser.
@@ -114,10 +113,143 @@ def yolov8_correct(q: queue.Queue, img_path: str, x: int, y: int, inference: Inf
     img = cv2.imread(img_path)
     img, xadj = crop_around(img, x, y, 640, 640)
     box = inference.predict(img)
+    # Based off inference, add x_offset to queue
     if(box[0] == -1): q.put(0)
     else:
         xtip = int((box[0] + box[2])/2 + xadj)
         q.put(xtip-x)
+        
+# Given a list of x and y values, uses least squares to calculate the slope and standard deviation of the slope
+def least_squares_slope_stddev(data: List[List[float]]):
+    # Ensure the input arrays are NumPy arrays
+    x = np.array(np.array([pair[0] for pair in data]))
+    y = np.array(np.array([pair[1] for pair in data]))
+
+    # Calculate the means of x and y
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+
+    # Calculate the slope (m) using the least squares method
+    slope = np.sum((x - x_mean) * (y - y_mean)) / np.sum((x - x_mean)**2)
+
+    # Calculate the standard deviation of the slope
+    n = len(x)
+    residuals = y - (slope * x)
+    stdev = np.sqrt(np.sum(residuals**2) / ((n - 2) * np.sum((x - x_mean)**2)))
+
+    return slope, stdev
+
+# Least squares to find best fit line
+def best_fit_line(x, y):
+    x_mean, y_mean = np.mean(x), np.mean(y)
+    slope = np.sum((x - x_mean) * (y - y_mean)) / np.sum((x - x_mean)**2)
+    intercept = y_mean - slope * x_mean
+    return slope, intercept
+
+# Given a list of x, y values, remove anomalies based on residuals from best fit line
+def remove_anomalies_line(data: List[List[float]], threshold=2.5) -> List[List[float]]:
+    x = np.array([pair[0] for pair in data])
+    y = np.array([pair[1] for pair in data])
+
+    # Calculate the best-fit line
+    slope, intercept = best_fit_line(x, y)
+
+    # Calculate the residuals
+    y_pred = slope * x + intercept
+    residuals = y - y_pred
+
+    # Calculate the mean and standard deviation of the residuals
+    mean_res, std_res = np.mean(residuals), np.std(residuals)
+
+    # Calculate the Z-scores for the residuals
+    z_scores = np.abs((residuals - mean_res) / std_res)
+
+    # Filter the data using the Z-score threshold
+    mask = z_scores < threshold
+    x_filtered = x[mask]
+    y_filtered = y[mask]
+
+    return [x_filtered.tolist(), y_filtered.tolist()]
+
+# Gets temporal offset
+def standard_horizontal_inference(frame: int, q: queue.Queue, frame_path: str, pixels: Tuple[int], 
+                                  inf: Inference, x_pixel_speed_per_frame: float, bed_angle: float,
+                                  s_times: List[int], slopes: List[float], stdevs: List[float],
+                                  temporal_offsets_1: List[float]):
+    yolo_inference = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
+    yolo_inference.start() 
+    yolo_inference.join()
+    print(frame)
+    spatial_offset = q.get_nowait()
+    temporal_offset = spatial_offset / x_pixel_speed_per_frame
+    if(spatial_offset == 0): return
+    spatially_right = spatial_offset > 0
+    # Ahead
+    temporal_offset = abs(temporal_offset)
+    # Behind
+    if((not spatially_right and 240 >= bed_angle >= 120) or(spatially_right and 60 >= bed_angle >= 0)):
+        temporal_offset = -1 * abs(temporal_offset)
+                    
+    temporal_offsets_1.append([frame, temporal_offset])
+    if(len(temporal_offsets_1) >= 5):
+        temporal_offsets_1 = remove_anomalies_line(temporal_offsets_1)
+    if(len(temporal_offsets_1) >= 5):
+        slope, stdev = least_squares_slope_stddev(temporal_offsets_1)
+        s_times.append(frame)
+        slopes.append(slope)
+        stdevs.append(stdev)
+
+# Checks if we are temporally ahead or behind
+def pre_vertical_inconclusive(frame1: int, frame2: int, q: queue.Queue, frame_path: str, 
+                                  pixels1: Tuple[int], pixels2: Tuple[int], inf: Inference):
+    yolo_inference = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame1) + '.jpg', pixels1[0], pixels1[1], inf))
+    yolo_inference.start() 
+    yolo_inference.join()
+    print('{frame} prevertical inconclusive')
+    spatial_offset1 = q.get_nowait()
+    
+    yolo_inference = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame2) + '.jpg', pixels2[0], pixels2[1], inf))
+    yolo_inference.start() 
+    yolo_inference.join()
+    spatial_offset2 = q.get_nowait()
+    
+    ahead = True
+    
+    if(spatial_offset1 > 10 and spatial_offset2 > 10): print("Something is wrong")
+    elif(spatial_offset1 < 10 and spatial_offset2 < 10): return
+    elif(spatial_offset1 > 10 and spatial_offset2 < 10): ahead = False
+    
+    return ahead
+
+# Gets temporal offset
+def pre_vertical_conclusive(frame: int, q: queue.Queue, frame_path: str, pixels: Tuple[int], 
+                                  inf: Inference, x_pixel_speed_per_frame: float, bed_angle: float,
+                                  s_times: List[int], slopes: List[float], stdevs: List[float],
+                                  temporal_offsets_2: List[float], temporal_error: bool):
+    yolo_inference = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
+    yolo_inference.start() 
+    yolo_inference.join()
+    print('{frame} prevertical conclusive')
+    spatial_offset = q.get_nowait()
+    if(spatial_offset < 5): return
+    spatially_right = spatial_offset > 0
+    
+    # True: ahead, False: behind
+    temporal_error = False
+    # Ahead
+    if((spatially_right and 240 >= bed_angle >= 120) or (not spatially_right and 60 >= bed_angle >= 0)):
+        temporal_error = True  
+    
+    # ahead or behind, spatially right or left
+    
+    if(len(temporal_offsets_2) >= 5):
+        temporal_offsets_2 = remove_anomalies_line(temporal_offsets_2)
+    if(len(temporal_offsets_2) >= 5):
+        slope, stdev = least_squares_slope_stddev(temporal_offsets_2)
+        s_times.append(frame)
+        slopes.append(slope)
+        stdevs.append(stdev)
+
 
 def tip_tracker(
     g_path: str,
@@ -127,8 +259,8 @@ def tip_tracker(
     sY: int,
     bed: Tuple[float, float, float],
     frame_path: str,
-    accel: float,
-) -> Tuple[List[int], List[float]]:    
+    time_k: float,
+) -> Tuple[list, list, list, list, list, list, list, list]:    
     
     with open(g_path, 'r') as f_gcode:
         data = f_gcode.read()
@@ -150,33 +282,42 @@ def tip_tracker(
     max_speed = 0.0
     next_max_speed = 0.0
     
+    temporary_coordinates = []
+    temporary_coordinates.append([0,time_k])
+    
     frame = 0
-    correction_clock = 0
-    thread_alarm = MIN_THREAD_ALARM
-    total_correction = 0
-    # Contains previous x offsets based off yolov8 correction
-    spatial_offset_stack = []
-    temporal_offset_stack = []
-    # True - tracker is ahead, False - tracker is behind
-    temporal_direction_stack = []
+    standard_horizontal_clock = 0
+    pre_vertical_clock = 0
+    conclusive_state = False
+    temporal_error = None
+
+    # Temporal offsets for standard horizontal moves
+    temporal_offsets_1 = []
+    # Temporal offsets for pre-vertical moves
+    temporal_offsets_2 = []
+    # List of booleans, telling us if we are ahead or behind. True: ahead, False: behind
+    temporal_errors = []
+        
+    # TO be deleted
+    s_times = []
+    slopes = []
+    stdevs = []
 
     inf = Inference(YOLO_PATH)
     q = queue.Queue()
-    t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixels[0], pixels[1], inf))
-    t1.start() 
         
     # Main Loop
     while next_g_index != -1:
         line, g_index = get_next_line(data, g_index)
         next_line, next_g_index = get_next_line(data, next_g_index)
-        
+
         for i in range(0,3):
             if(line[i] != -1): destination_bed_position[i] = line[i]
             else: destination_bed_position[i] = curr_bed_position[i]
         if(line[3] != -1): 
             max_speed = line[3] / 60
             if next_max_speed == 0: next_max_speed = max_speed
-            
+        
         if next_g_index != -1:
             for i in range(0,3):
                 if(next_line[i] != -1): next_destination_bed_position[i] = next_line[i]
@@ -187,10 +328,10 @@ def tip_tracker(
             next_max_velocity_vector = normalize(next_position_vector) * next_max_speed
         else:
             next_max_velocity_vector = np.array([0.0,0.0,0.0])
-            
+
         position_vector = destination_bed_position - curr_bed_position
         max_velocity_vector = normalize(position_vector) * max_speed
-                
+
         final_velocity = max_velocity_vector.copy()
         if final_velocity[0] >= 0 and next_max_velocity_vector[0] <= 0: final_velocity[0] = 0
         elif abs(final_velocity[0]) > abs(next_max_velocity_vector[0]): final_velocity[0] = next_max_velocity_vector[0]
@@ -199,7 +340,7 @@ def tip_tracker(
         if final_velocity[2] >= 0 and next_max_velocity_vector[2] <= 0: final_velocity[2] = 0
         elif abs(final_velocity[2]) > abs(next_max_velocity_vector[2]): final_velocity[2] = next_max_velocity_vector[2]
         final_speed = magnitude(final_velocity)
-        time_for_move = how_long(abs(magnitude(position_vector)), abs(magnitude(curr_velocity_vector)), abs(final_speed), abs(max_speed), accel) * TIME_K
+        time_for_move = how_long(abs(magnitude(position_vector)), abs(magnitude(curr_velocity_vector)), abs(final_speed), abs(max_speed), ACCELERATION) * time_k
         
         frames_for_move = int(time_for_move * fps)
         if(frames_for_move != 0): 
@@ -208,73 +349,57 @@ def tip_tracker(
         final_pixel_position = [position_vector[0] * mTp + pixels[0], pixels[1] - position_vector[2] * mTp * 0.7]
 
         bed_angle = math.atan2(position_vector[1], position_vector[0]) * 180 / math.pi
-        
+
+        is_standard_horizontal = False
+        if(360 >= bed_angle >= 300 or 60 >= bed_angle >= 0 or 240 >= bed_angle >= 120 and (frames_for_move >= 5) and max_speed < MAX_SPEED_FOR_STANDARD_HORIZONTAL): is_standard_horizontal = True
+        # Inconclusive Pre-vertical
+        if(not conclusive_state and pre_vertical_clock > PRE_VERTICAL_CAP and (360 >= bed_angle >= 300 or 60 >= bed_angle >= 0 or 240 >= bed_angle >= 120) 
+           and frames_for_move < 5 and next_max_velocity_vector[0] == 0 and abs(next_max_velocity_vector[1]) > 0): 
+            pre_vertical_clock = 0
+            temporal_errors.append(pre_vertical_inconclusive(frame, frame+frames_for_move+1, q, '{frame_path}{frame}.jpg', pixels, final_pixel_position, inf, x_pixel_speed_per_frame, bed_angle, s_times, slopes, stdevs, temporal_offsets_2))
+            if(len(temporal_errors) > 3):
+                all_equal = temporal_errors[-3] == temporal_errors[-2] == temporal_errors[-1]
+                if all_equal:
+                    conclusive_state = True
+                    temporal_error = temporal_errors[-1]
+            all_equal = temporal_errors[-3] == temporal_errors[-2] == temporal_errors[-1]
+
+        # Conclusive pre-vertical if behind
+        if(conclusive_state and not temporal_error and pre_vertical_clock > PRE_VERTICAL_CAP and (360 >= bed_angle >= 300 or 60 >= bed_angle >= 0 or 240 >= bed_angle >= 120) 
+           and frames_for_move < 5 and next_max_velocity_vector[0] == 0 and abs(next_max_velocity_vector[1]) > 0):
+            pre_vertical_clock = 0
+            pre_vertical_conclusive(frame, q, '{frame_path}{frame}.jpg', pixels, inf, x_pixel_speed_per_frame, bed_angle, s_times, slopes, stdevs, temporal_offsets_2, temporal_error)
+            
+        # Looping through frames for this line of gcode
         for i in range(frames_for_move):
             pixels = [pixels[0] + x_pixel_speed_per_frame, pixels[1] - z_pixel_speed_per_frame]
             pixel_locations.append(pixels.copy())
             angles.append(angle_adjustment(bed_angle))
             frame += 1
-            correction_clock += 1
-            if correction_clock == thread_alarm:
-                t1.join()
-                correction_clock = 0
-                x_offset = q.get_nowait()
-                spatial_offset_stack.append(x_offset)
-                temporal_offset_stack.append(x_offset)
-                t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixel_locations[frame][0], pixel_locations[frame][1], inf))
-                t1.start() 
-                if spatial_offset_stack[-1] == 0: spatial_offset_stack.pop()
-                # Spatial error
-                if(len(spatial_offset_stack) == 2):
-                    offset1, offset2 = spatial_offset_stack.pop(), spatial_offset_stack.pop()
-                    if(offset1 < 0 and offset2 < 0 or offset1 > 0 and offset2 > 0):
-                        correction = int((offset1 + offset2) / 2)
-                        pixels[0] += correction
-                        for tip_coords in pixel_locations[-thread_alarm*2:]:
-                            tip_coords[0] += correction
-                        if(thread_alarm >= 160): thread_alarm -= 10
-                    else:
-                        if(thread_alarm < 300): thread_alarm += 10
-                # Temporal error
-                #if(abs(correction1) < 5 and abs(correction2) >= 5 or abs(correction2) < 5 and abs(correction1) >= 5): 
-                    #if(correction1 < correction2): accel *= 1.005
-                    #else: accel *= 0.995
-                    #thread_alarm = int(thread_alarm * 0.9)
-                
+            pre_vertical_clock += 1
+            standard_horizontal_clock += 1
+            
+            # Standard horizontal inference
+            if is_standard_horizontal and standard_horizontal_clock >= 60 and i == int(frames_for_move/2) and os.path.exists('{frame_path}{frame}.jpg'):
+                standard_horizontal_clock = 0
+                standard_horizontal_inference(frame, q, '{frame_path}{frame}.jpg', pixels, inf, x_pixel_speed_per_frame, bed_angle, s_times, slopes, stdevs, temporal_offsets_1)
+            
         pixels = final_pixel_position
         angles.append(angle_adjustment(bed_angle))
         pixel_locations.append(pixels.copy())
         frame += 1
-        correction_clock += 1
-        if correction_clock == thread_alarm:
-                t1.join()
-                correction_clock = 0
-                x_offset = q.get_nowait()
-                spatial_offset_stack.append(x_offset)
-                temporal_offset_stack.append(x_offset)
-                t1 = threading.Thread(target=yolov8_correct, args=(q, frame_path + str(frame) + '.jpg', pixel_locations[frame][0], pixel_locations[frame][1], inf))
-                t1.start() 
-                if spatial_offset_stack[-1] == 0: spatial_offset_stack.pop()
-                # Spatial error
-                if(len(spatial_offset_stack) == 2):
-                    offset1, offset2 = spatial_offset_stack.pop(), spatial_offset_stack.pop()
-                    if(offset1 < 0 and offset2 < 0 or offset1 > 0 and offset2 > 0):
-                        correction = int((offset1 + offset2) / 2)
-                        pixels[0] += correction
-                        for tip_coords in pixel_locations[-thread_alarm*2:]:
-                            tip_coords[0] += correction
-                        if(thread_alarm >= 160): thread_alarm -= 10
-                    else:
-                        if(thread_alarm < 300): thread_alarm += 10
-                # Temporal error
-                #if(abs(correction1) < 5 and abs(correction2) >= 5 or abs(correction2) < 5 and abs(correction1) >= 5): 
-                    #if(correction1 < correction2): accel *= 1.005
-                    #else: accel *= 0.995
-                    #thread_alarm = int(thread_alarm * 0.9)
+        pre_vertical_clock += 1
+        standard_horizontal_clock += 1
+        # Conclusive pre-vertical if ahead
+        if(conclusive_state and temporal_error and pre_vertical_clock > PRE_VERTICAL_CAP and (360 >= bed_angle >= 300 or 60 >= bed_angle >= 0 or 240 >= bed_angle >= 120) 
+           and frames_for_move < 5 and next_max_velocity_vector[0] == 0 and abs(next_max_velocity_vector[1]) > 0):
+            pre_vertical_clock = 0
+            pre_vertical_conclusive(frame, q, '{frame_path}{frame}.jpg', pixels, inf, x_pixel_speed_per_frame, bed_angle, s_times, slopes, stdevs, temporal_offsets_2, temporal_error)
+            
         curr_bed_position = destination_bed_position.copy()
         curr_velocity_vector = final_velocity.copy()
         
-    return pixel_locations, angles
+    return pixel_locations, angles, temporary_coordinates, temporal_offsets_1, temporal_offsets_2, slopes, stdevs, s_times
 
 def measure_diameter(video_path, g_code):
     cam = cv2.VideoCapture(video_path)
@@ -288,12 +413,12 @@ def measure_diameter(video_path, g_code):
     while(True):
         ret,frame = cam.read()
         frame = np.dot(frame[...,:3], [0.299, 0.587, 0.114])
-        draw.draw_rectangle("/Users/brianprzezdziecki/Research/Mechatronics/STREAM_AI/data/frame" + str(currentframe) + ".jpg", bounding_boxes[currentframe][0], bounding_boxes[currentframe][1], bounding_boxes[currentframe][2], bounding_boxes[currentframe][3])
+        draw.draw_rectangle("/Users/brianprzezdziecki/Research/Mechatronics/STREAM_AI/data/frame{currentframe}.jpg", bounding_boxes[currentframe][0], bounding_boxes[currentframe][1], bounding_boxes[currentframe][2], bounding_boxes[currentframe][3])
         #time.sleep(3)
         print(bounding_boxes[currentframe])
         if ret:
             # if video is still left continue creating images
-            name = './data/frame' + str(currentframe) + '.jpg'
+            name = './data/frame{currentframe}.jpg'
             
         
             cv2.imwrite(name, frame)
