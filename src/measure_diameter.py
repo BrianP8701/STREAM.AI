@@ -1,7 +1,6 @@
 import numpy as np
 import cv2
 import math
-import numpy.linalg as linalg
 from matplotlib import pyplot as plt
 
 def draw_line(img, slope, intercept):
