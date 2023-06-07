@@ -1,8 +1,5 @@
 """
-This is the drawing.py file.
-
-This module provides functionality for basic drawing operations
-including drawing a box and line.
+This module provides functionality for basic drawing operations.
 """
 
 import cv2

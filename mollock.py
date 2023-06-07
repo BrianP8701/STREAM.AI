@@ -1,4 +1,4 @@
-from src import g_parser as parser
+from . import tip_tracker as parser
 from src import drawing as draw
 from src import constants as constants
 import cv2
@@ -8,7 +8,7 @@ import numpy as np
 
 video = constants.LOCAL_PATHS.get('8000_path')
 gcode = constants.LOCAL_PATHS.get('8000_gcode')
-tips, angles, temporary_coordinates, temporal_offsets = parser.tip_tracker(gcode, 30, 14.45, 1108, 370, [120.857,110, 1.8], video, constants.CORRECT_TIMEK.get('8000_timek'))
+tips, angles, temporary_coordinates, temporal_offsets = parser.track(gcode, 30, 14.45, 1108, 370, [120.857,110, 1.8], video, constants.CORRECT_TIMEK.get('8000_timek'))
 
 frames = [pair[0] for pair in temporal_offsets]
 temporal_offsets = [pair[1] for pair in temporal_offsets]

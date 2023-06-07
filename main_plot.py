@@ -1,4 +1,4 @@
-from src import g_parser as parser
+from . import tip_tracker as parser
 from src import drawing as draw
 from src import constants as constants
 import cv2
@@ -8,7 +8,7 @@ import numpy as np
 
 args = constants.ARGS.get('2144_args')
 video = constants.LOCAL_PATHS.get('2144_path')
-tips, angles, temporary_coordinates, temporal_offsets = parser.tip_tracker(args[0], 30, args[2], args[3], args[4], args[5], args[6], args[7], args[8])
+tips, angles, temporary_coordinates, temporal_offsets = parser.track(args[0], 30, args[2], args[3], args[4], args[5], args[6], args[7], args[8])
 
 # Plotting, playing with data
 frames = [pair[0] for pair in temporal_offsets]

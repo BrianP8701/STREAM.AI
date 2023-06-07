@@ -1,4 +1,4 @@
-from src import g_parser as parser
+from . import tip_tracker as parser
 from src import drawing as draw
 from src import constants as constants
 import cv2
@@ -8,7 +8,7 @@ import numpy as np
 
 video = constants.LOCAL_PATHS.get('video_2_path')
 gcode = constants.LOCAL_PATHS.get('gcode2')
-tips, angles, temporary_coordinates, temporal_offsets = parser.tip_tracker(gcode, 30, 14.45, 1108, 370, [120.857,110, 1.8], video, constants.TIME_K)
+tips, angles, temporary_coordinates, temporal_offsets = parser.track(gcode, 30, 14.45, 1108, 370, [120.857,110, 1.8], video, constants.TIME_K)
 
 # Stitch frames together into a video
 frame = 0
