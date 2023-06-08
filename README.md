@@ -1,39 +1,21 @@
-# Setting up the enviroment
-To run this project, you'll need to set up a Python environment and install the required packages. You can do this using either Conda or pip:
+# STREAM AI - Tip Tracker & Measure Diameter 
+## Overview
 
-## Option 1: Using Conda
-Conda is a package and environment manager. It can recreate the exact environment this project was developed in. Here's how to do it:
+This project aims to provide a real-time solution to common 3D printing errors, such as over-extrusion, under-extrusion, and inconsistencies caused by bubbles in the extruder. Our system's end goal is to use real-time video and gcode to monitor the printing process, track the extruder tip's position, and make real-time adjustments to the print based on the measured width of the extruded material.
 
-Clone the project:
-```
-git clone https://github.com/your_username/your_project.git
-```
+There are many sources of error in tracking the tip. To counter these we created methods to detect, process and correct tips. Further details can be found at: https://docs.google.com/document/d/1JAA3Ad73O36-zbMMh2id8rbsgu4T1TKEHiiCEI0894E/edit#
 
-Navigate to the project directory:
-```
-cd your_project
-```
-
-Create a new Conda environment from the environment.yml file:
-```
-conda env create -f environment.yml
-```
-
-Activate the new environment:
-```
-conda activate your_env_name
-```
-## Option 2: Using pip
+## Installation
 pip is a Python package installer. You can use it to install the required packages into a virtual environment. Here's how to do it:
 
 Clone the project:
 ```
-git clone https://github.com/your_username/your_project.git
+git clone https://github.com/BrianP8701/STREAM.AI
 ```
 
 Navigate to the project directory:
 ```
-cd your_project
+cd STREAM.AI
 ```
 
 Create a new virtual environment:
@@ -50,3 +32,7 @@ Install the required packages from the requirements.txt file:
 ```
 pip install -r requirements.txt
 ```
+
+Usage
+
+Contributing
