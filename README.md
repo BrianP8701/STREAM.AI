@@ -33,6 +33,6 @@ Install the required packages from the requirements.txt file:
 pip install -r requirements.txt
 ```
 
-Usage
+## Usage
 
-Contributing
+## Contributing
