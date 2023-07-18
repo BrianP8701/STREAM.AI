@@ -162,31 +162,6 @@ def measure_diameter(img, theta, tip):
             pair = curr_pair
     return pair
 
-def whiten(img: np.ndarray):
-    x = np.std(img)
-    rang = 2.04023 * x - 4.78237
-    if(x < 20): rang = 5
-    whitestPixel = 0
-    for i in range(len(img)):
-        for j in range(len(img[0])):
-            if(img[i][j] > whitestPixel): whitestPixel = img[i][j]
-    for i in range(len(img)):
-        for j in range(len(img[0])):
-            if(img[i][j] > whitestPixel - rang): img[i][j] = 255
-    cutoff = 255 - rang
-    while(True):    
-        whitestPixel = 0
-        for i in range(len(img)):
-            for j in range(len(img[0])):
-                if(img[i][j] < cutoff and img[i][j] > whitestPixel): whitestPixel = img[i][j]
-        if whitestPixel == 0: break
-        for i in range(len(img)):
-            for j in range(len(img[0])):
-                if(img[i][j] > whitestPixel - rang and img[i][j] < cutoff): img[i][j] = whitestPixel
-        cutoff = whitestPixel - rang
-    return img
-
-
 image_path = '/Users/brianprzezdziecki/Research/Mechatronics/STREAM_AI/data/edgeimg/Edge7.jpeg'
 image = cv2.imread(image_path)[:,:,0]
 whiten(image)

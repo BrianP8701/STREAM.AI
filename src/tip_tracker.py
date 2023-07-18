@@ -20,7 +20,7 @@ import threading
 import queue
 from .constants import *
 from inference_.inference import Inference
-from . import drawing as draw
+from ..src2 import drawing_functions as draw
 from typing import List, Tuple
 
 """
@@ -37,9 +37,11 @@ def quadratic(a, b, c):
 
 # Returns the next line of gcode in the file and the index of the line after
 def get_next_line(data: List[str], index):
-    index += 1
     line_data = [-1.0, -1.0, -1.0, -1.0]
+    if(index >= len(data)): return line_data, -99
     while(index < len(data)):
+        index += 1
+        if(index >= len(data)): return line_data, -99
         if(data[index][:2] == 'G1'): 
             line: list = data[index].split(" ")
             breakout = False
@@ -55,7 +57,6 @@ def get_next_line(data: List[str], index):
                     line_data[2] = float(c[1:])
                 elif(c[:1] == "F"): line_data[3] = float(c[1:])
             if breakout: return line_data, index
-        index += 1
     return line_data, -99
 
 # Calculates how long it will take to finish move in seconds
@@ -67,21 +68,18 @@ def how_long(distance: float, curr_speed: float, final_speed: float, max_speed: 
     s3 = distance - s1 - s2
     return (max_speed - curr_speed) / acceleration + s3 / max_speed + (max_speed - final_speed) / acceleration
 
-def update_this_line(line: List[float], curr_bed_position: np.ndarray, destination_bed_position: np.ndarray, 
-                     position_vector: np.ndarray, next_max_speed: float) -> Tuple[float, float, np.ndarray]:
+def update_from_this_line(line: List[float], curr_bed_position: np.ndarray, destination_bed_position: np.ndarray, 
+                     next_max_speed: float, max_speed: float) -> Tuple[float, float, np.ndarray]:
     for i in range(0,3):
         if(line[i] != -1): destination_bed_position[i] = line[i]
         else: destination_bed_position[i] = curr_bed_position[i]
     if(line[3] != -1): 
         max_speed = line[3] / 60
         if next_max_speed == 0: next_max_speed = max_speed
-    position_vector = destination_bed_position - curr_bed_position
-    max_velocity_vector = normalize(position_vector) * max_speed
-    final_velocity = max_velocity_vector.copy()
-    return max_speed, next_max_speed, final_velocity
+    return max_speed, next_max_speed
 
-def update_next_line(next_line: List[float], destination_bed_position: np.ndarray, next_destination_bed_position: np.ndarray, 
-                     next_max_speed: np.ndarray) -> Tuple[float, np.ndarray]:
+def update_from_next_line(next_line: List[float], curr_bed_position: np.ndarray, destination_bed_position: np.ndarray, 
+                    next_destination_bed_position: np.ndarray, max_speed: float, next_max_speed: float) -> Tuple[float, np.ndarray]:
     for i in range(0,3):
         if(next_line[i] != -1): next_destination_bed_position[i] = next_line[i]
         else: next_destination_bed_position[i] = destination_bed_position[i]
@@ -89,7 +87,10 @@ def update_next_line(next_line: List[float], destination_bed_position: np.ndarra
         next_max_speed = next_line[3] / 60
     next_position_vector = next_destination_bed_position - destination_bed_position
     next_max_velocity_vector = normalize(next_position_vector) * next_max_speed
-    return next_max_speed, next_max_velocity_vector
+    displacement_vector = destination_bed_position - curr_bed_position
+    max_velocity_vector = normalize(displacement_vector) * max_speed
+    final_velocity = max_velocity_vector.copy()
+    return next_max_speed, next_max_velocity_vector, displacement_vector, final_velocity
 
 def speed_at_end_of_this_move(final_velocity: np.ndarray, next_max_velocity_vector: np.ndarray):
     if final_velocity[0] >= 0 and next_max_velocity_vector[0] <= 0: final_velocity[0] = 0
@@ -99,8 +100,9 @@ def speed_at_end_of_this_move(final_velocity: np.ndarray, next_max_velocity_vect
     if final_velocity[2] >= 0 and next_max_velocity_vector[2] <= 0: final_velocity[2] = 0
     elif abs(final_velocity[2]) > abs(next_max_velocity_vector[2]): final_velocity[2] = next_max_velocity_vector[2]
     final_speed = magnitude(final_velocity)
+    return final_speed
     
-def move_one_frame(x_pixel_speed_per_frame: float, z_pixel_speed_per_frame: float, pixel_locations: List[List], angles: List[float], bed_angle: float):
+def move_one_frame(pixels: List[int], x_pixel_speed_per_frame: float, z_pixel_speed_per_frame: float, pixel_locations: List[List], angles: List[float], bed_angle: float):
     pixels = [pixels[0] + x_pixel_speed_per_frame, pixels[1] - z_pixel_speed_per_frame]
     pixel_locations.append(pixels.copy())
     angles.append(angle_adjustment(bed_angle))
@@ -251,8 +253,8 @@ def pre_vertical_conclusive(frame: int, q: queue.Queue, frame_path: str, pixels:
     3. Error Processing
 """
 def standard_horizontal(is_standard_horizontal: bool, standard_horizontal_clock: int, frame: int, q: queue.Queue, video_path: str, 
-                        pixels: Tuple[int], frames_for_move: int, inf: Inference, x_pixel_speed_per_frame: float, bed_angle: float, 
-                        temporal_offsets: List[float], temporal_errors: List[bool], i: int):
+                        pixels: List[int], frames_for_move: int, inf: Inference, x_pixel_speed_per_frame: float, bed_angle: float, 
+                        temporal_offsets: List[float], temporal_errors: List[bool], i: int, is_conclusive: bool, temporal_error: bool):
     if is_standard_horizontal and standard_horizontal_clock >= 60 and i == int(frames_for_move/2) and os.path.exists(f'{video_path}{frame}.jpg'):
         standard_horizontal_clock = 0
         standard_horizontal_inference(frame, q, video_path, pixels, inf, x_pixel_speed_per_frame, bed_angle, temporal_offsets)
@@ -267,11 +269,13 @@ def standard_horizontal(is_standard_horizontal: bool, standard_horizontal_clock:
                     temporal_error = temporal_errors[-1]
         elif(len(temporal_offsets) >= 4):
             slope, stdv = least_squares_slope_stddev([pair[0] for pair in temporal_offsets], [pair[1] for pair in temporal_offsets])
+        if temporal_error == None: return standard_horizontal_clock, is_conclusive, None, slope, stdv
         return standard_horizontal_clock, is_conclusive, temporal_error, slope, stdv
+    if temporal_error == None: return standard_horizontal_clock, is_conclusive, None, slope, stdv
     return standard_horizontal_clock, is_conclusive, temporal_error, None, None
 
-def pre_vertical(is_conclusive: bool, pre_vertical_clock: int, frame: int, q: queue.Queue, video_path: str, pixel_locations: Tuple[int],
-                 final_pixel_position: Tuple[int], inf: Inference, temporal_offsets: List[float], temporal_error: bool, temporal_errors: List[bool],
+def pre_vertical(is_conclusive: bool, pre_vertical_clock: int, frame: int, q: queue.Queue, video_path: str, pixel_locations: List[int],
+                 final_pixel_position: List[int], inf: Inference, temporal_offsets: List[float], temporal_error: bool, temporal_errors: List[bool],
                  frames_for_move: int,next_max_velocity_vector: np.ndarray, bed_angle: float, pixels: Tuple[int]) -> Tuple[int, bool, bool, float, float]:
     if(not is_conclusive and pre_vertical_clock > PRE_VERTICAL_CAP and (360 >= bed_angle >= 300 or 60 >= bed_angle >= 0 or 240 >= bed_angle >= 120) 
            and frames_for_move < 5 and next_max_velocity_vector[0] == 0 and abs(next_max_velocity_vector[1]) > 0): 
@@ -300,7 +304,7 @@ def pre_vertical(is_conclusive: bool, pre_vertical_clock: int, frame: int, q: qu
         if(len(temporal_offsets) >= 4):
             slope, stdv = least_squares_slope_stddev([pair[0] for pair in temporal_offsets], [pair[1] for pair in temporal_offsets])
         return pre_vertical_clock, prev_temporal_offset, slope, stdv, is_conclusive
-    return pre_vertical_clock, prev_temporal_offset, None, None, is_conclusive
+    return pre_vertical_clock, None, None, None, is_conclusive
         
     
     
@@ -424,29 +428,29 @@ def track(
     bed: Tuple[float, float, float],
     video_path: str,
     time_k: float,
-    skip_lines: int
+    g_index: int
 ) -> Tuple[list, list, list]:
        
 # Open gcode file
     with open(g_path, 'r') as f_gcode:
-        data = f_gcode.read()
-        data: list = data.split("\n")
+        gcode = f_gcode.read()
+        gcode: list = gcode.split("\n")
         
 # Initialize tip tracker variables
     frame = 0
     pixels = [sX, sY + 10] # Current pixel location
     pixel_locations = [] # List of pixel locations
     angles = [] # List of angles
-    g_index = skip_lines # Line in gcode
+    g_index = g_index - 2 # Line in gcode
     curr_bed_position = np.array([bed[0], bed[1], bed[2]])
     destination_bed_position = np.array([0.0, 0.0, 0.0])
     next_destination_bed_position = np.array([0.0, 0.0, 0.0])
-    position_vector = np.array([0.0,0.0,0.0])
+    displacement_vector = np.array([0.0,0.0,0.0])
     velocity_vector = np.array([0.0,0.0,0.0])
     # Max speeds are in mm/s
     max_speed = 8
     next_max_speed = 8
-    temp, next_g_index = get_next_line(data, -1) # Next line in gcode
+    temp, next_g_index = get_next_line(gcode, g_index) # Next line in gcode
     pixel_locations.append(pixels)
     angles.append(0)
 
@@ -468,25 +472,28 @@ def track(
         
 # Loop until end of gcode file
     while g_index != -99:
-        line, g_index = get_next_line(data, g_index) # This frame's line of gcode
-        next_line, next_g_index = get_next_line(data, next_g_index) # Next frame's line of gcode
+        line, g_index = get_next_line(gcode, g_index) # This move's line of gcode
+        next_line, next_g_index = get_next_line(gcode, next_g_index) # Next move's line of gcode
+        if(next_g_index == -99): break
         if not os.path.exists(f'{video_path}{frame}.jpg'): break
 
         # Update variables based on this line of gcode
-        max_speed, next_max_speed, final_velocity = update_this_line(line, curr_bed_position, destination_bed_position, position_vector, next_max_speed)
-        
+        max_speed, next_max_speed = update_from_this_line(line, curr_bed_position, destination_bed_position, next_max_speed, max_speed)
+    
         # Update variables based on next line of gcode
-        next_max_speed, next_max_velocity_vector = update_next_line(next_line, destination_bed_position, next_destination_bed_position, next_max_speed)
-
+        next_max_speed, next_max_velocity_vector, displacement_vector, final_velocity = update_from_next_line(next_line, curr_bed_position, destination_bed_position, next_destination_bed_position, max_speed, next_max_speed)
         final_speed = speed_at_end_of_this_move(final_velocity, next_max_velocity_vector)
-        time_for_move = how_long(abs(magnitude(position_vector)), abs(magnitude(velocity_vector)), abs(final_speed), abs(max_speed), ACCELERATION) * time_k
+        print(displacement_vector)
+        print(velocity_vector)
+        print("AHHHH")
+        time_for_move = how_long(abs(magnitude(displacement_vector)), abs(magnitude(velocity_vector)), abs(final_speed), abs(max_speed), ACCELERATION) * time_k
         frames_for_move = int(time_for_move * fps)
-        x_pixel_speed_per_frame = ((position_vector[0] / time_for_move) * mTp) / fps
-        z_pixel_speed_per_frame = ((position_vector[2] / time_for_move) * mTp * 0.7) / fps
-        
+        x_pixel_speed_per_frame = ((displacement_vector[0] / time_for_move) * mTp) / fps
+        z_pixel_speed_per_frame = ((displacement_vector[2] / time_for_move) * mTp * 0.7) / fps
+
         # Our prediction of pixel location and angle for this frame
-        final_pixel_position = [position_vector[0] * mTp + pixels[0], pixels[1] - position_vector[2] * mTp * 0.7]
-        bed_angle = math.atan2(position_vector[1], position_vector[0]) * 180 / math.pi
+        final_pixel_position = [displacement_vector[0] * mTp + pixels[0], pixels[1] - displacement_vector[2] * mTp * 0.7]
+        bed_angle = math.atan2(displacement_vector[1], displacement_vector[0]) * 180 / math.pi
 
         #if(frames_for_move != 0): 
             #x_pixel_speed_per_frame = (position_vector[0] / frames_for_move) * mTp
@@ -497,21 +504,21 @@ def track(
 
         is_standard_horizontal = False
         if((360 >= bed_angle >= 300 or 60 >= bed_angle >= 0 or 240 >= bed_angle >= 120) and (frames_for_move >= 5) and max_speed < MAX_SPEED_FOR_STANDARD_HORIZONTAL and x_pixel_speed_per_frame > 0): is_standard_horizontal = True
-        
+
         # We want to inference at start of parser move, and backtrack to see when the start of the real move was
-        pre_vertical_clock, prev_temporal_offset, slope, stdv = pre_vertical(is_conclusive, pre_vertical_clock, frame, q, video_path, pixel_locations, final_pixel_position, inf, 
+        pre_vertical_clock, prev_temporal_offset, slope, stdv, is_conclusive = pre_vertical(is_conclusive, pre_vertical_clock, frame, q, video_path, pixel_locations, final_pixel_position, inf, 
                                                                              temporal_offsets, temporal_error, temporal_errors, frames_for_move, next_max_velocity_vector, bed_angle, pixels)
-        
+
         # Looping through frames for this line of gcode
         for i in range(frames_for_move):
             
-            pixels = move_one_frame(x_pixel_speed_per_frame, z_pixel_speed_per_frame, pixel_locations, angles, bed_angle)
+            pixels = move_one_frame(pixels, x_pixel_speed_per_frame, z_pixel_speed_per_frame, pixel_locations, angles, bed_angle)
             frame += 1; pre_vertical_clock += 1; standard_horizontal_clock += 1
             if not os.path.exists(f'{video_path}{frame}.jpg'): break
             
             # Will perform standard horizontal inference if conditions are met
-            standard_horizontal_clock, is_conclusive, temporal_error, slope, stdv = standard_horizontal(is_standard_horizontal, standard_horizontal_clock, frame, q, video_path, pixels, 
-                                                                                                        frames_for_move, inf, x_pixel_speed_per_frame, bed_angle, temporal_offsets, temporal_errors, i)
+            standard_horizontal_clock, is_conclusive, temporal_error, slope, stdv = standard_horizontal(is_standard_horizontal, standard_horizontal_clock, frame, q, video_path, pixels, frames_for_move, 
+                                                                                                        inf, x_pixel_speed_per_frame, bed_angle, temporal_offsets, temporal_errors, i, is_conclusive, temporal_error)
         # Final variable updates, before moving on to next line of gcode
         pixels = move_last_frame(final_pixel_position, pixel_locations, angles, bed_angle)
         frame += 1; pre_vertical_clock += 1; standard_horizontal_clock += 1
@@ -520,7 +527,7 @@ def track(
         velocity_vector = final_velocity.copy()
         
         # We want to inference at end of parser move, and go forward to see when the start of the real move is
-        pre_vertical_clock, prev_temporal_offset, slope, stdv = pre_vertical(is_conclusive, pre_vertical_clock, frame, q, video_path, pixel_locations, final_pixel_position, inf, 
+        pre_vertical_clock, prev_temporal_offset, slope, stdv, is_conclusive = pre_vertical(is_conclusive, pre_vertical_clock, frame, q, video_path, pixel_locations, final_pixel_position, inf, 
                                                                              temporal_offsets, temporal_error, temporal_errors, frames_for_move, next_max_velocity_vector, bed_angle, pixels)
     return pixel_locations, angles, temporal_offsets
 
