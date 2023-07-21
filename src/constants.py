@@ -1,7 +1,7 @@
 from types import MappingProxyType
 
 TEST_INPUTS = MappingProxyType({
-    0: ['data/video/Run78_0626-112608.mov', 'data/gcode/TEST_8_13_1_08.gcode', 'data/signal/Run78P_0626.txt',],
+    0: ['data/video/Run78.mov', 'data/gcode/TEST_8_13_1_08.gcode', 'data/signal/Run78P_0626.txt',],
 })
 
 CORRECT_TIMEK = MappingProxyType({
@@ -22,5 +22,10 @@ CORRECT_TIMEK = MappingProxyType({
 ACCELERATION = 64
 # Used to adjust calculated time of moves. Adaptively changes for each new video
 TIME_K = 0.992
-YOLO_PATH = 'src/YOLOv8/best.onnx'
+YOLO_PATH = 'src/YOLOv8/best1.onnx'
 MOBILE_PATH = 'src/MobileNetv3/mob_l_gmms2_finetune.pt'
+
+TIME_TRAVEL_MIN_SIGNALS=5
+TIME_TRAVEL_MAX_DEVIATION=5 # in frames
+ACCELERATION_MIN_SIGNALS=10
+ACCELERATION_MIN_STDEV=0.3

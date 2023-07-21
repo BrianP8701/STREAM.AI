@@ -24,6 +24,7 @@ def mobile_inference(img, model):
     elif image_class == 2: image_class = 'under'
     return image_class
 
+
 # YOLO inference on image larger than 640x640
 def infer_large_image(img, model, stride=320):
     if isinstance(img, str):
