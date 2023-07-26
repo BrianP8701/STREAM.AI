@@ -7,20 +7,21 @@ import cv2
 import sys
 import os
 import json
-''' 
-Parse a file with the format:
-    2023-06-26 11:26:09
-    Nozzle position X	Nozzle position Y	Nozzle position Z	
-    4904	0.00	0.00	5.00	
-    5518	5.00	0.00	5.00	
-    6590	0.00	5.00	5.00	
-    9193	0.00	0.00	2.00	
-    ...
 
-Returns a list of lists of the format:
-    [[time, [x, y, z]], ...]
-'''
 def parse_file(filename):
+    ''' 
+    Parse a file with the format:
+        2023-06-26 11:26:09
+        Nozzle position X	Nozzle position Y	Nozzle position Z	
+        4904	0.00	0.00	5.00	
+        5518	5.00	0.00	5.00	
+        6590	0.00	5.00	5.00	
+        9193	0.00	0.00	2.00	
+        ...
+
+    Returns a list of lists of the format:
+        [[time, [x, y, z]], ...]
+    '''
     with open(filename, 'r') as file:
         lines = file.readlines()[8:]  # Skip the first eight lines
 
@@ -129,7 +130,26 @@ def modify_list(lst, num):
 
 def millis_to_frames(millis, fps):
     return round((millis / 1000) * fps)
+
+
+def save_unique_image(folder_path, image_np):
+    """ Save the given image to the specified folder with a unique name. """
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
     
+    # Find a unique filename
+    index = 0
+    while True:
+        filename = f"frame{index}.jpg"
+        full_path = os.path.join(folder_path, filename)
+        
+        if not os.path.exists(full_path):
+            break
+        index += 1
+    
+    # Save the image
+    cv2.imwrite(full_path, image_np)
+
 def save_list_to_json(data_list, destination_path):
     # Ensure the provided data is a list
     if not isinstance(data_list, list):
@@ -144,14 +164,15 @@ def save_list_to_json(data_list, destination_path):
     with open(destination_path, 'w') as json_file:
         json.dump(data_list, json_file)
 
-"""
+
+def resize_image(image, scale_percent):
+    """
     Resize the image by the given scale percentage.
     
     :param image: Input image.
     :param scale_percent: Percentage by which the image should be scaled. E.g., 50 means the image will be half its original size.
     :return: Resized image.
-"""
-def resize_image(image, scale_percent):
+    """
     width = int(image.shape[1] * scale_percent / 100)
     height = int(image.shape[0] * scale_percent / 100)
     dim = (width, height)
@@ -236,8 +257,11 @@ def time_travel(predictions, angles, current_frame_index, offset, interval=15):
 
     return adjusted_predictions, adjusted_angles
 
-# Given a list of x and y values, uses least squares to calculate the slope and standard deviation of the slope
+
 def least_squares_slope_stddev(x, y):
+    '''
+    Given a list of x and y values, uses least squares to calculate the slope and standard deviation of the slope
+    '''
     # Ensure the input arrays are NumPy arrays
     x = np.array(x)
     y = np.array(y)

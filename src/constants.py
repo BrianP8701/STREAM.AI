@@ -19,7 +19,7 @@ CORRECT_TIMEK = MappingProxyType({
 })
 
 # Acceleration of extruder tip in mm/s^2
-ACCELERATION = 64
+ACCELERATION = 8000
 # Used to adjust calculated time of moves. Adaptively changes for each new video
 TIME_K = 0.992
 YOLO_PATH = 'src/YOLOv8/best1.onnx'
@@ -27,5 +27,13 @@ MOBILE_PATH = 'src/MobileNetv3/mob_l_gmms2_finetune.pt'
 
 TIME_TRAVEL_MIN_SIGNALS=5
 TIME_TRAVEL_MAX_DEVIATION=5 # in frames
+
 ACCELERATION_MIN_SIGNALS=10
-ACCELERATION_MIN_STDEV=0.3
+ACCELERATION_MIN_STDEV=1
+
+X_SPATIAL_MIN_SIGNALS=15
+X_SPATIAL_MAX_DEVIATION=10
+
+Y_SPATIAL_MIN_SIGNALS=5
+Y_SPATIAL_MAX_DEVIATION=10
+# [[70, 1], ]
