@@ -233,16 +233,17 @@ def add_empty_frames_to_video(video_path, destination_path, delay_frames):
 # Time travel. Every {interval} frames, either add or remove a frame based on the offset.
 # Positive - add frames
 # Negative - remove frames
-def time_travel(predictions, angles, current_frame_index, offset, interval=15):
+def time_travel(predictions, angles, corner_indices,  current_frame_index, offset, interval=15):
     adjusted_predictions = predictions.copy()
     adjusted_angles = angles.copy()
-
+    adjusted_corner_indices = corner_indices.copy()
     if offset > 0:  # We're ahead and need to add buffer frames.
         for i in range(offset):
             idx_to_modify = current_frame_index + i*interval
             if idx_to_modify < len(adjusted_predictions):
                 adjusted_predictions.insert(idx_to_modify, adjusted_predictions[idx_to_modify])
                 adjusted_angles.insert(idx_to_modify, adjusted_angles[idx_to_modify])
+                adjusted_corner_indices.insert(idx_to_modify, adjusted_corner_indices[idx_to_modify])
             else:
                 break  # Reached end of the list, can't add more
 
@@ -252,10 +253,11 @@ def time_travel(predictions, angles, current_frame_index, offset, interval=15):
             if idx_to_modify < len(adjusted_predictions):
                 del adjusted_predictions[idx_to_modify]
                 del adjusted_angles[idx_to_modify]
+                del adjusted_corner_indices[idx_to_modify]
             else:
                 break  # Reached end of the list, can't remove more
 
-    return adjusted_predictions, adjusted_angles
+    return adjusted_predictions, adjusted_angles, adjusted_corner_indices
 
 
 def least_squares_slope_stddev(x, y):

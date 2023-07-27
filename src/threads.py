@@ -11,6 +11,7 @@ import time
 import queue
 import numpy as np
 
+video_start_event = threading.Event()
 tracking = False
 acceleration = c.ACCELERATION
 ratio = 0
@@ -45,7 +46,9 @@ y_spatial_offsets = []
 temporal_offsets = []
 signal_index = 0
 current_y = 0
+start_time = 0
 
+temp_list = []
 
 # TEMPORARY TRACKER VARIABLES
 slopes = []
@@ -61,14 +64,14 @@ def main_thread(video_path, gcode_path, signals_path, display_video=False, save_
     global corner_indices
     
     bed_predictions, angles, corner_indices = g.gcode_parser(gcode_path, acceleration, 30)
-    threading.Thread(target=signal_thread, args=(signals_path,)).start()
     threading.Thread(target=video_thread, args=(video_path,)).start()
+    threading.Thread(target=signal_thread, args=(signals_path,)).start()
     threading.Thread(target=signal_router, daemon=True).start()
     threading.Thread(target=initialize_ratio, args=(frames, yolo_model), daemon=True).start()
 
     if save_video:
         fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
-        out = cv2.VideoWriter(save_path, fourcc, 30.0, (3840, 2160))
+        out = cv2.VideoWriter(save_path, fourcc, 10.0, (3840, 2160))
         
     frame_index = 0
     while True:
@@ -77,13 +80,15 @@ def main_thread(video_path, gcode_path, signals_path, display_video=False, save_
         except queue.Empty:
             hf.print_text('End of tracker', 'red')
             break
-
+        
+        frame = frame.copy()
+        frame = d.write_text_on_image(frame, f'Frame: {frame_index}', )
+        
         if tracking:
-            frame = frame.copy()
             box = hf.get_bounding_box(screen_predictions[frame_index], 50)
             frame = d.draw_return(frame, round(box[0]), round(box[1]), round(box[2]), round(box[3]))
         
-        if save_video and frame_index % 5 == 0:
+        if save_video and frame_index % 3 == 0:
             out.write(frame)
         
         if display_video and frame_index % 5 == 0:
@@ -91,11 +96,22 @@ def main_thread(video_path, gcode_path, signals_path, display_video=False, save_
             cv2.imshow('Real Time Image Stream', frame)
             cv2.waitKey(1)
 
-        if frame_index == 1000:
+        if frame_index == 2000:
             print(slopes[-1][1])
-            d.plot_points(slopes, 'Slopes7.jpg')
-            d.plot_points(stdevs, 'Stdevs7.jpg')
-            d.plot_points(temporal_offsets, 'TemporalOffsets7.jpg')
+            d.plot_points(slopes, 'Slopes0.jpg')
+            d.plot_points(stdevs, 'Stdevs0.jpg')
+            d.plot_points(temporal_offsets, 'TemporalOffsets0.jpg')
+        if frame_index == 4000:
+            print(slopes[-1][1])
+            d.plot_points(slopes, 'Slopes1.jpg')
+            d.plot_points(stdevs, 'Stdevs1.jpg')
+            d.plot_points(temporal_offsets, 'TemporalOffsets1.jpg')
+        if frame_index == 6000:
+            print(slopes[-1][1])
+            d.plot_points(slopes, 'Slopes2.jpg')
+            d.plot_points(stdevs, 'Stdevs2.jpg')
+            d.plot_points(temporal_offsets, 'TemporalOffsets2.jpg')
+            hf.save_list_to_json(temp_list, 'temp_list.json')
         frame_index += 1
 
     d.plot_points(slopes, 'Slopes.jpg')
@@ -115,12 +131,14 @@ def video_thread(video_path):
     global tracking
     global video_buffer
     global global_frame_index
+    global start_time
     
     # Open video file
     cam = cv2.VideoCapture(video_path)
     ret, frame = cam.read()
     
     start_time = time.time() # Get the current time
+    video_start_event.set()
     target_time = start_time + 1/30 # The time we want to get the next frame
     global_frame_index = 0
     while True:
@@ -128,7 +146,7 @@ def video_thread(video_path):
         if not ret:
             break
         if not tracking: frames.append(frame)
-        if len(video_buffer) < 200:
+        if len(video_buffer) < 50:
             video_buffer.append([global_frame_index, frame])
         else:
             video_buffer.pop(0)
@@ -139,7 +157,7 @@ def video_thread(video_path):
         sleep_time = target_time - time.time()
         if sleep_time > 0:
             time.sleep(sleep_time)
-        
+
         # queue_size = hf. get_queue_memory_usage(video_queue)
         # print("Queue size: " + str(queue_size) + " bytes")
         target_time += 1/30
@@ -153,10 +171,10 @@ def signal_thread(signals_path):
     hf.print_text('Signal stream beginning', 'blue')
     global signal_queue
     global signals
+    global signal_index
     
     signal_list = hf.parse_file(signals_path)
-    
-    start_time = time.time()  # Get the current time
+    video_start_event.wait()
     for signal in signal_list:
         signal_time = signal[0] / 1000.0  # Convert milliseconds to seconds
         time_to_wait = signal_time - (time.time() - start_time)
@@ -166,6 +184,7 @@ def signal_thread(signals_path):
         # Add the signal to the queue
         if tracking: signal_queue.put(signal)
         signals.append(signal)
+        signal_index += 1
     
     hf.print_text('Signal stream ended', 'red')
 
@@ -177,54 +196,69 @@ def signal_router():
     
     while True:
         signal = signal_queue.get() 
-        threading.Thread(target=temporal_thread, args=(signal,), daemon=True).start()
-        time.sleep(0.2)
-        buffer = video_buffer.copy()
-        
         signal_time_frame = hf.millis_to_frames(signal[0], 30)
-        # Find corresponding frame in video buffer
-        for frame, image in buffer:
-            if frame == signal_time_frame:  # Replace this with your actual condition
-                img = image.copy()
-                break
-        predicted_screen_location = screen_predictions[signal_time_frame]
+        threading.Thread(target=temporal_thread, args=(signal_time_frame,), daemon=True).start()
+        threading.Thread(target=YOLO_thread, args=(signal_time_frame,), daemon=True).start()
         
-        try:
-            sub_img = hf.crop_image_around_point(img, predicted_screen_location[0], predicted_screen_location[1], 640)
-        except NameError:
-            hf.print_text('Frame not found in buffer', 'red')
-            print(f'{buffer[0]} to {buffer[-1]}\nSignal time frame: {signal_time_frame}\n')
-            return
-        try:
-            real_screen_box = inference.yolo_inference(sub_img, yolo_model)
-        except:
-            print(f"{sub_img}\n{predicted_screen_location}\n{signal_time_frame}\n{sub_img.shape}\n{type(sub_img)}\nYOLO failed\n")
+# This thread runs YOLO and calls the appropriate functions
+def YOLO_thread(signal_time_frame):
+    time.sleep(0.05)
+    buffer = video_buffer.copy()
+    
+    # Find corresponding frame in video buffer
+    found_frame = False
+    for frame, image in buffer:
+        if frame == signal_time_frame:  # Replace this with your actual condition
+            img = image.copy()
+            found_frame = True
+            break
+    if not found_frame: 
+        hf.print_text('Frame not found in buffer', 'yellow')
+        print(f'Frame {buffer[0][0]} to {buffer[-1][0]}\nSignal time frame: {signal_time_frame}\n')
+        raise Exception('Frame not found in buffer')
+    
+    predicted_screen_location = screen_predictions[signal_time_frame]
+    sub_img = hf.crop_image_around_point(img, predicted_screen_location[0], predicted_screen_location[1], 640)
+
+    try:
+        real_screen_box = inference.yolo_inference(sub_img, yolo_model)
+    except:
+        print(predicted_screen_location[0])
+        print(predicted_screen_location[1])
+        hf.print_text(f"{sub_img}\n{predicted_screen_location}\n{signal_time_frame}\n{sub_img.shape}\n{type(sub_img)}\nYOLO failed\n", 'red')
+        print(f'Frame {buffer[0][0]} to {buffer[-1][0]}\nSignal time frame: {signal_time_frame}\n')
 
 
-        subimg_location = hf.get_center_of_box(real_screen_box)
-        real_screen_location = [subimg_location[0] - 320 + predicted_screen_location[0], subimg_location[1] - 320 + predicted_screen_location[1]]
-        if abs(real_screen_location[1] - current_y) > 30:
-            continue
-        
+    subimg_location = hf.get_center_of_box(real_screen_box)
+    real_screen_location = [subimg_location[0] - 320 + predicted_screen_location[0], subimg_location[1] - 320 + predicted_screen_location[1]]
+    
+    if not abs(real_screen_location[1] - current_y) > 30: 
         spatial_thread(signal_time_frame, real_screen_location)
-        
-        
-def temporal_thread(signal):    
+    
+    
+def temporal_thread(frame):    
     global signal_index
     global slopes
     global stdevs
     global temporal_offsets
+    global screen_predictions
+    global temp_list
+    global angles
+    global corner_indices
     
-    signal_time_frame = hf.millis_to_frames(signal[0], 30)
-    screen_time_frame = corner_indices[signal_index]
+    if signal_index < len(corner_indices): screen_time_frame = corner_indices[signal_index]
+    else: return
     
-    temporal_offset = signal_time_frame - screen_time_frame
-    temporal_offsets.append([signal_time_frame, temporal_offset])
+    temporal_offset = frame - screen_time_frame
+    
+    temp_list.append([screen_time_frame, frame, temporal_offset])
+    
+    temporal_offsets.append([frame, temporal_offset])
     # Acceleration
     if len(temporal_offsets) > c.ACCELERATION_MIN_SIGNALS:
         slope, stdv = hf.least_squares_slope_stddev([pair[0] for pair in temporal_offsets], [pair[1] for pair in temporal_offsets])
-        slopes.append([signal_time_frame, slope])
-        stdevs.append([signal_time_frame, stdv])
+        slopes.append([frame, slope])
+        stdevs.append([frame, stdv])
         
         # if stdv < 1:
         #     print("Adjust Acceleration")
@@ -232,17 +266,18 @@ def temporal_thread(signal):
     if len(temporal_offsets) > c.TIME_TRAVEL_MIN_SIGNALS:
         # If the temporal offsets are within the max deviation, time travel
         if max(temporal_offsets, key=lambda x: x[1])[1] - min(temporal_offsets, key=lambda x: x[1])[1] < c.TIME_TRAVEL_MAX_DEVIATION:
-            hf.print_text('Time Travel', 'green')
-            average_temporal_offset = sum(temporal_offsets) / len(temporal_offsets)
-            print('Average temporal offset: ' + str(average_temporal_offset))
-            screen_predictions, angles = hf.time_travel(screen_predictions, angles, signal_time_frame, average_temporal_offset)
+            hf.print_text(f'Time Travel at {frame}', 'green')
+            average_temporal_offset = round(sum(sublist[1] for sublist in temporal_offsets) / len(temporal_offsets))
+            screen_predictions, angles, corner_indices = hf.time_travel(screen_predictions, angles, corner_indices, frame, average_temporal_offset)
             return
+    
 
 def spatial_thread(frame, real_screen_tip):   
     global screen_predictions
     global x_spatial_offsets
     global y_spatial_offsets
     global current_y
+    
     spatial_offset = [real_screen_tip[0] - screen_predictions[frame][0], real_screen_tip[1] - screen_predictions[frame][1]]
     x_spatial_offsets.append([frame, spatial_offset[0]])
     y_spatial_offsets.append([frame, spatial_offset[1]])
@@ -274,9 +309,7 @@ def spatial_thread(frame, real_screen_tip):
 def ratio_thread():
     hf.print_text('Ratio Thread called', 'blue')
     signal_index = 0
-    while True:
         
-        signal_index += 1
 
 def analytics_thread():
     hf.print_text('Analytics Thread Called', 'blue')
@@ -375,11 +408,10 @@ def initialize_screen_predictions(first_signal):
     
     first_yolo = yolo_history[0]
     
-    # Align bed predictions with first signal
+    # Align predictions with first signal
     bed_predictions_reindex = first_yolo[0] - 1
     bed_predictions = hf.modify_list(bed_predictions, bed_predictions_reindex)
     angles = hf.modify_list(angles, bed_predictions_reindex)
-    
     corner_indices = [corner_index + bed_predictions_reindex for corner_index in corner_indices]
     
     # Fill the screen_predictions list with [-1, -1] for all frames before first yolo
@@ -390,11 +422,11 @@ def initialize_screen_predictions(first_signal):
     
     tip = first_yolo[1].copy()
     new_screen_predictions.append(tip.copy())
-    
+        
     for i in range(first_yolo[0], len(bed_predictions)):
         x_millimeter_change = bed_predictions[i-1][0] - bed_predictions[i][0]
         z_millimeter_change = bed_predictions[i-1][2] - bed_predictions[i][2]
-            
+                        
         tip[0] -= x_millimeter_change * ratio
         tip[1] += z_millimeter_change * ratio
         
