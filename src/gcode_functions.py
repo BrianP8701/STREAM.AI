@@ -22,9 +22,9 @@ Output:
 '''
 def gcode_parser(gcode_path: str, acceleration: float, fps: int):
 
-    # List of [x, y, z, speed] 
+    # List of [x, y, z, speed]
     corners = simplify_gcode(gcode_path)
-    frame = 0    
+    frame = 0
 
     bed_predictions = []
     angle_list = []
@@ -58,8 +58,9 @@ def gcode_parser(gcode_path: str, acceleration: float, fps: int):
         next_max_velocity = hf.normalize(next_displacement) * next_max_speed
         final_velocity, final_speed = speed_at_end_of_this_move(final_velocity, next_max_velocity)
         if final_speed > max_speed:
-            hf.print_text('final_speed is greater than max_speed. This should not happen.', 'magenta')
-
+            final_speed = max_speed
+            final_velocity = hf.normalize(displacement) * final_speed
+        
         # In milliseconds
         time_for_move, achieved_final_speed = how_long(abs(distance), abs(speed), abs(final_speed), abs(max_speed), acceleration)
         time_for_move *= c.TIME_K
@@ -69,7 +70,8 @@ def gcode_parser(gcode_path: str, acceleration: float, fps: int):
             
         leftover_frames = (time_for_move * fps + leftover_frames) - frames_for_move
  
-        velocity = (displacement / frames_for_move)
+        if frames_for_move != 0: velocity = (displacement / frames_for_move)
+        else: velocity = 0
         angle = math.atan2(displacement[1], displacement[0]) * 180 / math.pi
         
         for frame in range(frames_for_move):
@@ -80,7 +82,8 @@ def gcode_parser(gcode_path: str, acceleration: float, fps: int):
         angle_list.append(angle)
         
         velocity = achieved_final_velocity
-    
+        
+    corner_indices.append(len(bed_predictions)-1)
     return bed_predictions, angle_list, corner_indices
 
 

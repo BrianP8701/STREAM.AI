@@ -11,6 +11,7 @@ from PIL import Image
 from torchvision import transforms
 import torch.nn as nn
 from torchvision import models
+from torchvision.models import MobileNet_V3_Large_Weights
 
 # You may need to adjust the input size based on the model you are using
 # For example, EfficientNet-B0 uses 224, but other versions may use larger sizes
@@ -26,8 +27,8 @@ preprocess = transforms.Compose([
 
 def load_model(model_path, num_classes=3):
     # Initialize the model architecture
-    model = models.mobilenet_v3_large
-    model = model(num_classes)
+    model = models.mobilenet_v3_large(weights=MobileNet_V3_Large_Weights.DEFAULT)
+    # model = model(num_classes)
     
     # Reset final fully connected layer
     num_ftrs = model.classifier[3].in_features

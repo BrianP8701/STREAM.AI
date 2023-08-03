@@ -24,8 +24,8 @@ def show(img_path):
     plt.imshow(img)
     plt.show()
     
-def draw_return(image, x, y, a, b):
-    cv2.rectangle(image, (x, y), (a, b), (255, 0, 0), 1)
+def draw_return(image, x, y, a, b, color=(255, 0, 0), thickness=1):
+    cv2.rectangle(image, (x, y), (a, b), color, thickness)
     return image
 
 
@@ -55,7 +55,18 @@ def write_text_on_image(image_np, text, position=(50, 50), font=cv2.FONT_HERSHEY
     cv2.putText(image_np, text, position, font, font_scale, color, thickness)
     return image_np
 
-def plot_points(points_list, destination_path):
+def plot_points(points_list, destination_path, plot_title='Scatter Plot of Points', x_label='X values', y_label='Y values'):
+    """
+    Plots a scatter plot of the points provided in the points_list.
+    
+    Parameters:
+    - points_list: List of [x,y] coordinates.
+    - destination_path: Path to save the generated plot.
+    - plot_title: Optional title for the plot.
+    - x_label: Optional label for the x-axis.
+    - y_label: Optional label for the y-axis.
+    """
+    
     # Extract x and y values from the list of lists
     x_values = [point[0] for point in points_list]
     y_values = [point[1] for point in points_list]
@@ -68,11 +79,16 @@ def plot_points(points_list, destination_path):
         plt.xlim(min(x_values), max(x_values))
         plt.ylim(min(y_values), max(y_values))
 
-    # Setting the title and labels
-    plt.title('Scatter Plot of Points')
-    plt.xlabel('X values')
-    plt.ylabel('Y values')
+    # Setting the title and labels using the provided arguments
+    plt.title(plot_title)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
 
     # Saving the plot to the given destination path
     plt.savefig(destination_path)
     plt.close()
+    
+def draw_line(img, line):
+    cv2.line(img, (line[0], line[1]), (line[2], line[3]), (255, 0, 0), 1)
+    return img
+    
