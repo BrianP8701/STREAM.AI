@@ -5,10 +5,6 @@ This project aims to provide a real-time solution to common 3D printing errors, 
 
 There are many sources of error in tracking the tip. To counter these we created methods to detect, process and correct tips. Further details can be found at: https://docs.google.com/document/d/1JAA3Ad73O36-zbMMh2id8rbsgu4T1TKEHiiCEI0894E/edit#
 
-Certainly. Here's a concise README for your project:
-
----
-
 ## Setup Instructions
 
 ### Prerequisites
