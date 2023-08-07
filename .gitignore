@@ -1,5 +1,7 @@
 sidedata/
 data/
-.DS_Store
 notes.txt
 test.py
+
+.DS_Store
+**/__pycache__/
