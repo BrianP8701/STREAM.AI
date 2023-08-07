@@ -33,13 +33,9 @@ conda env create -f environment.yml
 conda activate STREAM_AI
 ```
 
-### Running the Project
+## Running the Project
 
-[Specific instructions on how to run or use your project.]
 
----
-
-Replace the placeholders (`[Your Project Name]`, `[Short description of your project.]`, `[YOUR_REPO_LINK]`, `[YOUR_REPO_DIRECTORY]`, and `[YOUR_ENV_NAME]`) with the appropriate information. The last section, "Running the Project", is a placeholder for any specific instructions you might have for someone to run or use your project after setting up the environment.
 ## Usage
 
 ## Contributing
