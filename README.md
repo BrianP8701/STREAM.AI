@@ -30,11 +30,15 @@ conda env create -f environment.yml
 conda activate STREAM_AI
 ```
 
-
-## Running the Project
-
-
 ## Usage
 
 
 ## Contributing
+
+Bug Reporting: Should you stumble upon any bugs or challenges, we appreciate detailed issue reports. Please create a new issue, outlining the encountered problem and the specific inputs you used.
+
+Optimizations & Refinements: If you discover ways to enhance the system's efficiency, improve robustness, or streamline the code, kindly submit a pull request with your proposed changes.
+
+Thank you!
+
+
