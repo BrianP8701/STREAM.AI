@@ -1,10 +1,3 @@
-from types import MappingProxyType
-
-TEST_INPUTS = MappingProxyType({
-    0: ['data/video/Run78.mov', 'data/gcode/TEST_8_13_1_08.gcode', 'data/signal/Run78P_0626.txt',],
-    1: ['data/video/Run74.mov', 'data/gcode/TEST_6_17_1_08.gcode', 'data/signal/Run74P_0626.txt',],
-})
-
 RATIO_INITIALIZATION_MIN_RANGE=5
 ACCEPTABLE_Y_DIFFERENCE=30
 # Acceleration of extruder tip in mm/s^2

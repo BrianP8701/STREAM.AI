@@ -51,12 +51,12 @@ reference_temporal_offsets = [] # [[frame, offset], ...], with respect to refere
 x_spatial_offsets = []
 y_spatial_offsets = []
 
-# TEMPORARY TRACKER VARIABLES
 slopes = []
 stdevs = []
 
-def main_thread(video_path, gcode_path, signals_path, display_video=False, save_video=False, save_path=None):
-    
+
+
+def main_thread(video_path, gcode_path, signals_path, display_video=False, display_fps=6, save_video=False, save_fps=6, save_path=None, resolution_percentage=40):
     global frames
     global screen_predictions
     global tracking
@@ -76,8 +76,9 @@ def main_thread(video_path, gcode_path, signals_path, display_video=False, save_
     
     if save_video:
         fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
-        # out = cv2.VideoWriter(save_path, fourcc, 10.0, (3840, 2160))
-        out = cv2.VideoWriter(save_path, fourcc, 10.0, (1536, 864))
+        out = cv2.VideoWriter(save_path, fourcc, save_fps, (int(3840*(resolution_percentage/100)), int(2160*(resolution_percentage/100))))
+    save_divisor = 30 / save_fps
+    display_divisor = 30 / display_fps
         
     frame_index = 0
     while True:
@@ -100,6 +101,8 @@ def main_thread(video_path, gcode_path, signals_path, display_video=False, save_
             box = hf.get_bounding_box(screen_predictions[frame_index], 50)
             frame = d.draw_return(frame, round(box[0]), round(box[1]), round(box[2]), round(box[3]), thickness=3)
             
+            
+        
         if tracking and len(screen_predictions) > frame_index and screen_predictions[frame_index][0] != -1 and len(angles) > frame_index:
             line = hf.get_line(screen_predictions[frame_index], angles[frame_index])
             frame = d.draw_line(frame, line)
@@ -107,45 +110,24 @@ def main_thread(video_path, gcode_path, signals_path, display_video=False, save_
             crop_box = [round(crop_box[0]), round(crop_box[1]), round(crop_box[2]), round(crop_box[3])]
             frame = d.draw_return(frame, crop_box[0], crop_box[1], crop_box[2], crop_box[3], color=(0, 255, 0), thickness=3)
             
-            if frame_index % 5 == 0:
+            if frame_index % display_divisor == 0 or frame_index % save_divisor == 0:
                 sub_img = hf.crop_box_on_image(crop_box, raw_frame)
                 sub_img = preprocessing.gmms_preprocess_image(sub_img, 6)
            
                 extrusion_class = mobilenet.infer_image(sub_img, mobile_model)
-                print(extrusion_class)
                 frame = d.write_text_on_image(frame, extrusion_class, position=(500, 300), font_scale=5, thickness=6)
             
-        
-        if save_video and frame_index % 3 == 0:
-            frame = hf.resize_image(frame, 40)
+        if save_video or display_video:
+            frame = hf.resize_image(frame, resolution_percentage)
+            
+        if save_video and frame_index % save_divisor == 0:
             out.write(frame)
         
-        if display_video and frame_index % 5 == 0:
+        if display_video and frame_index % display_divisor == 0:
             cv2.imshow('Real Time Image Stream', frame)
             cv2.waitKey(1)
         
         frame_index += 1
-
-    
-    # TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP 
-    d.plot_points(reference_temporal_offsets, 'TemporalOffsets.jpg', 'Temporal Offsets vs Time', 'Frame', 'Temporal Offset')
-    d.plot_points(slopes, 'Slopes.jpg', 'Slopes vs Time', 'Frame', 'Slope')
-    d.plot_points(stdevs, 'Stdevs.jpg', 'Stdevs vs Time', 'Frame', 'Stdev')
-    
-    first_part = hf.filter_points_by_x_range(reference_temporal_offsets, 0, 1200)
-    second_part = hf.filter_points_by_x_range(reference_temporal_offsets, 1500, 100000)
-    first_slope, st = hf.least_squares_slope_stddev([pair[0] for pair in first_part], [pair[1] for pair in first_part])
-    second_slope, st = hf.least_squares_slope_stddev([pair[0] for pair in second_part], [pair[1] for pair in second_part])
-    print('First slope: ' + str(first_slope))
-    print('Second slope: ' + str(second_slope))
-    
-    first_part_realistic = hf.filter_points_by_x_range(reference_temporal_offsets, 700, 1200)
-    second_part_realistic = hf.filter_points_by_x_range(reference_temporal_offsets, 1200, 1700)
-    first_slope_realistic, st = hf.least_squares_slope_stddev([pair[0] for pair in first_part_realistic], [pair[1] for pair in first_part_realistic])
-    second_slope_realistic, st = hf.least_squares_slope_stddev([pair[0] for pair in second_part_realistic], [pair[1] for pair in second_part_realistic])
-    print('First slope realistic: ' + str(first_slope_realistic))
-    print('Second slope realistic: ' + str(second_slope_realistic))
-    # TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP 
     
 
     if save_video:
@@ -448,9 +430,6 @@ def initialize_ratio(yolo_model):
             banned_signals.append(leftmost_x_signal_index)
             banned_signals.append(rightmost_x_signal_index)
             continue
-        
-        print(f'{leftmost_x_signal_index} {leftmost_x_frame} {leftmost_box}')
-        print(f'{rightmost_x_signal_index} {rightmost_x_frame} {rightmost_box}')
         
         if leftmost_x_frame > rightmost_x_frame: 
             yolo_history.append([rightmost_x_frame, hf.get_center_of_box(rightmost_box)])

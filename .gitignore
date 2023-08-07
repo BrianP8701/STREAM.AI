@@ -5,3 +5,5 @@ test.py
 
 .DS_Store
 **/__pycache__/
+
+my_constants.py
