@@ -5,34 +5,41 @@ This project aims to provide a real-time solution to common 3D printing errors, 
 
 There are many sources of error in tracking the tip. To counter these we created methods to detect, process and correct tips. Further details can be found at: https://docs.google.com/document/d/1JAA3Ad73O36-zbMMh2id8rbsgu4T1TKEHiiCEI0894E/edit#
 
-## Installation
-pip is a Python package installer. You can use it to install the required packages into a virtual environment. Here's how to do it:
+Certainly. Here's a concise README for your project:
 
-Clone the project:
-```
+---
+
+## Setup Instructions
+
+### Prerequisites
+
+- Make sure you have `conda` installed. If not, [download and install Miniconda or Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html).
+
+### Setting up the Environment
+
+1. Clone this repository:
+```bash
 git clone https://github.com/BrianP8701/STREAM.AI
+cd [STREAM_AI_REPO_DIRECTORY]
 ```
 
-Navigate to the project directory:
-```
-cd STREAM.AI
-```
-
-Create a new virtual environment:
-```
-python3 -m venv env
+2. Recreate the conda environment from the provided `environment.yml`:
+```bash
+conda env create -f environment.yml
 ```
 
-Activate the new environment:
-```
-source env/bin/activate  # Use 'env\Scripts\activate' on Windows
-```
-
-Install the required packages from the requirements.txt file:
-```
-pip install -r requirements.txt
+3. Activate the newly created environment:
+```bash
+conda activate STREAM_AI
 ```
 
+### Running the Project
+
+[Specific instructions on how to run or use your project.]
+
+---
+
+Replace the placeholders (`[Your Project Name]`, `[Short description of your project.]`, `[YOUR_REPO_LINK]`, `[YOUR_REPO_DIRECTORY]`, and `[YOUR_ENV_NAME]`) with the appropriate information. The last section, "Running the Project", is a placeholder for any specific instructions you might have for someone to run or use your project after setting up the environment.
 ## Usage
 
 ## Contributing
