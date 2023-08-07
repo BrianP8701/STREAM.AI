@@ -468,3 +468,25 @@ def angle_adjustment(theta: float) -> float:
     #if angle == 270:
         #angle = 265
     return angle
+
+def crop_box_on_image(box, image):
+    """
+    Given a box represented as [x1, y1, x2, y2] and an image, returns the subsection of the image.
+
+    Args:
+    - box (list of int): [x1, y1, x2, y2] defining the top-left and bottom-right corners of the box.
+    - image (numpy array): The image from which the subsection should be extracted.
+
+    Returns:
+    - numpy array: The extracted subsection of the image.
+    """
+    
+    x1, y1, x2, y2 = box
+    
+    if len(image.shape) == 3:
+        # For a color image
+        return image[y1:y2, x1:x2, :]
+    else:
+        # For grayscale
+        return image[y1:y2, x1:x2]
+    

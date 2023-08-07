@@ -5,11 +5,13 @@ from src.YOLOv8.inference import Inference
 import src.inference as inference
 import src.MobileNetv3.inference as mobilenet
 import src.drawing_functions as d
+import src.preprocessing as preprocessing
 import cv2
 import threading
 import time
 import queue
 import numpy as np
+import gc
 
 video_start_event = threading.Event()
 initiate_acceleration_thread = threading.Event()
@@ -68,7 +70,7 @@ def main_thread(video_path, gcode_path, signals_path, display_video=False, save_
     threading.Thread(target=video_thread, args=(video_path,)).start()
     threading.Thread(target=signal_thread, args=(signals_path,)).start()
     threading.Thread(target=signal_router, daemon=True).start()
-    threading.Thread(target=initialize_ratio, args=(frames, yolo_model), daemon=True).start()
+    threading.Thread(target=initialize_ratio, args=(yolo_model,), daemon=True).start()
     threading.Thread(target=recent_slope_thread, daemon=True).start()
     threading.Thread(target=acceleration_thread, daemon=True).start()
     
@@ -80,12 +82,12 @@ def main_thread(video_path, gcode_path, signals_path, display_video=False, save_
     frame_index = 0
     while True:
         try:
-            frame = video_queue.get(timeout=2)
+            raw_frame = video_queue.get(timeout=10)
         except queue.Empty:
             hf.print_text('End of tracker', 'red')
             break
         
-        frame = frame.copy()
+        frame = raw_frame.copy()
         frame = d.write_text_on_image(frame, f'Frame: {frame_index}', )
         
         if frame_index % c.RECENT_SLOPE_SAMPLE_INTERVAL == 0:
@@ -96,14 +98,24 @@ def main_thread(video_path, gcode_path, signals_path, display_video=False, save_
             
         if tracking and len(screen_predictions) > frame_index and screen_predictions[frame_index][0] != -1:
             box = hf.get_bounding_box(screen_predictions[frame_index], 50)
-            frame = d.draw_return(frame, round(box[0]), round(box[1]), round(box[2]), round(box[3]))
+            frame = d.draw_return(frame, round(box[0]), round(box[1]), round(box[2]), round(box[3]), thickness=3)
             
         if tracking and len(screen_predictions) > frame_index and screen_predictions[frame_index][0] != -1 and len(angles) > frame_index:
             line = hf.get_line(screen_predictions[frame_index], angles[frame_index])
             frame = d.draw_line(frame, line)
             crop_box = hf.crop_in_direction(screen_predictions[frame_index], line)
-            frame = d.draw_return(frame, round(crop_box[0]), round(crop_box[1]), round(crop_box[2]), round(crop_box[3]), color=(0, 255, 0))
+            crop_box = [round(crop_box[0]), round(crop_box[1]), round(crop_box[2]), round(crop_box[3])]
+            frame = d.draw_return(frame, crop_box[0], crop_box[1], crop_box[2], crop_box[3], color=(0, 255, 0), thickness=3)
             
+            if frame_index % 5 == 0:
+                sub_img = hf.crop_box_on_image(crop_box, raw_frame)
+                sub_img = preprocessing.gmms_preprocess_image(sub_img, 6)
+           
+                extrusion_class = mobilenet.infer_image(sub_img, mobile_model)
+                print(extrusion_class)
+                frame = d.write_text_on_image(frame, extrusion_class, position=(500, 300), font_scale=5, thickness=6)
+            
+        
         if save_video and frame_index % 3 == 0:
             frame = hf.resize_image(frame, 40)
             out.write(frame)
@@ -164,7 +176,9 @@ def video_thread(video_path):
         ret, frame = cam.read()
         if not ret:
             break
-        if not tracking: frames.append(frame)
+        if not tracking: 
+            try: frames.append(frame)
+            except: pass
         if len(video_buffer) < 30:
             video_buffer.append([global_frame_index, frame])
         else:
@@ -280,11 +294,7 @@ def temporal_thread(frame, signal_index):
     
     reference_temporal_offset = frame - reference_time_frame        
     reference_temporal_offsets.append([frame, reference_temporal_offset])  
-    print(f'Signal: {signals[signal_index]}     Bed Prediction: {bed_predictions[screen_time_frame]}') 
-    print(f'Reference temporal offset: {reference_temporal_offset}')
     screen_temporal_offset = frame - screen_time_frame
-    print(f'Screen temporal offset: {screen_temporal_offset}')
-    print()
     screen_predictions, bed_predictions, angles, corner_indices = hf.time_travel(screen_predictions, bed_predictions, angles, corner_indices, frame, screen_temporal_offset)
     
     # print(f'Screen temporal offset: {screen_temporal_offset}')
@@ -342,10 +352,11 @@ def acceleration_thread():
         
         if len(reference_temporal_offsets) > c.ACCELERATION_MIN_SIGNALS:
             x_temporal_offsets, y_temporal_offsets = [pair[0] for pair in reference_temporal_offsets], [pair[1] for pair in reference_temporal_offsets]
-            slope, stdv = hf.least_squares_slope_stddev(x_temporal_offsets, y_temporal_offsets)
-            
-            slopes.append([global_frame_index, slope])
-            stdevs.append([global_frame_index, stdv])
+            try:
+                slope, stdv = hf.least_squares_slope_stddev(x_temporal_offsets, y_temporal_offsets)
+                slopes.append([global_frame_index, slope])
+                stdevs.append([global_frame_index, stdv])
+            except: pass
 
 
 def recent_slope_thread():
@@ -377,12 +388,13 @@ def analytics_thread():
         time += 1
         time.sleep(1)
 
-def initialize_ratio(frames, yolo_model):
+def initialize_ratio(yolo_model):
     hf.print_text('Initialization & Synchronization started', 'blue')
     
     global yolo_history
     global ratio
     global current_y
+    global frames
     
     # We need to find two signals that are far enough apart so we can determine the ratio
     leftmost_x = 9999999
@@ -455,12 +467,14 @@ def initialize_ratio(frames, yolo_model):
         ratio = pixel_difference / millimeter_difference
         if leftmost_x_signal_index > rightmost_x_signal_index: min_index = rightmost_x_signal_index
         else: min_index = leftmost_x_signal_index
+        del frames
+        gc.collect()
         threading.Thread(target=initialize_screen_predictions, args=(min_index,), daemon=True).start()
         break
+    
         
     
 def initialize_screen_predictions(min_index):
-    global frames
     global screen_predictions
     global tracking
     global bed_predictions
@@ -504,7 +518,4 @@ def initialize_screen_predictions(min_index):
     
     tracking = True
     # Clear and free memory of frames (Was holding frames to be looked back at for this method)
-    del frames
-    import gc
-    gc.collect()
     hf.print_text('Initialization & Synchronization Done', 'green')

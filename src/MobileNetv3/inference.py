@@ -12,6 +12,7 @@ from torchvision import transforms
 import torch.nn as nn
 from torchvision import models
 from torchvision.models import MobileNet_V3_Large_Weights
+import numpy as np
 
 # You may need to adjust the input size based on the model you are using
 # For example, EfficientNet-B0 uses 224, but other versions may use larger sizes
@@ -52,18 +53,29 @@ def infer_image_simple(img):
     with torch.no_grad():
         output = model(image)
         predicted_class = torch.argmax(output, dim=1)
-
-    return predicted_class.item()
+        
+    if predicted_class.item() == 0:
+        return 'normal'
+    elif predicted_class.item() == 1:
+        return 'over'
+    else:
+        return 'under'
 
 def infer_image(img, model):    
     if isinstance(img, str):
         image = Image.open(img)
-        
-    image = preprocess(image)
+    else:
+        img = Image.fromarray((img * 255).astype(np.uint8))
+    image = preprocess(img)
     image = image.unsqueeze(0)  # create a mini-batch as expected by the model
     
     with torch.no_grad():
         output = model(image)
         predicted_class = torch.argmax(output, dim=1)
 
-    return predicted_class.item()
+    if predicted_class.item() == 0:
+        return 'normal'
+    elif predicted_class.item() == 1:
+        return 'over'
+    else:
+        return 'under'
