@@ -7,7 +7,7 @@
 import src.threads.global_vars as GV
 import src.helpers.helper_functions as helpers
 import src.helpers.drawing_functions as d
-import src.threads.Analytics as Analytics
+from src.threads.Analytics import Analytics
 import queue
 import cv2
 
@@ -17,12 +17,12 @@ class VideoOutput:
         self.save_video = save_video
         self.save_path = save_path
         self.resolution_percentage = resolution_percentage
-        self.Analytics = Analytics()
         if save_video:
             fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
             self.out = cv2.VideoWriter(save_path, fourcc, save_fps, (int(3840*(resolution_percentage/100)), int(2160*(resolution_percentage/100))))
         self.save_divisor = 30 / save_fps
         self.display_divisor = 30 / display_fps
+        self.Analytics = Analytics()
     
     def start(self):
         helpers.print_text('Analytics thread started', 'blue')
