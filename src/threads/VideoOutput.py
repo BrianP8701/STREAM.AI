@@ -42,6 +42,8 @@ class VideoOutput:
                 if len(GV.angles) > frame_index:
                     line = self.draw_line(frame, frame_index)
                     extrusion_box_coords = self.draw_extrusion_box(frame, frame_index, line)
+                    
+                    frame = d.write_text_on_image(frame, f'{GV.angles[frame_index]}', position=(200,200))
 
                     if frame_index % self.display_divisor == 0 or frame_index % self.save_divisor == 0: # Only run inference when displaying or saving frame
                         extrusion_class = self.Analytics.get_extrusion_class(extrusion_box_coords, raw_frame)
@@ -93,3 +95,8 @@ class VideoOutput:
         box = [round(box[0]), round(box[1]), round(box[2]), round(box[3])]
         frame = d.draw_return(frame, box[0], box[1], box[2], box[3], color=(0, 255, 0), thickness=3)
         return box
+    
+    def displaying_saving_and_visible_material(self, frame_index):
+        return ((frame_index % self.display_divisor == 0 or 
+                frame_index % self.save_divisor == 0) and
+                (abs(GV.angles[frame_index] + 90) <= 10))
