@@ -10,6 +10,7 @@ import src.helpers.drawing_functions as d
 from src.threads.Analytics import Analytics
 import queue
 import cv2
+import src.helpers.preprocessing as preprocessing
 
 class VideoOutput:
     def __init__(self, display_video, display_fps, save_video, save_path, save_fps, resolution_percentage):
@@ -46,8 +47,10 @@ class VideoOutput:
                     frame = d.write_text_on_image(frame, f'{GV.angles[frame_index]}', position=(200,200))
 
                     if frame_index % self.display_divisor == 0 or frame_index % self.save_divisor == 0: # Only run inference when displaying or saving frame
-                        extrusion_class = self.Analytics.get_extrusion_class(extrusion_box_coords, raw_frame)
+                        recently_extruded_material_img, recently_extruded_material_img_with_gmms = self.get_recently_extruded_material_img(raw_frame, extrusion_box_coords)
+                        extrusion_class = self.Analytics.get_extrusion_class(recently_extruded_material_img_with_gmms)
                         self.draw_extrusion_class(frame, extrusion_class)
+                        GV.data_queue.put((recently_extruded_material_img, recently_extruded_material_img_with_gmms, extrusion_class))
                 
             # Resize image for faster processing
             if self.save_video or self.display_video:
@@ -57,9 +60,7 @@ class VideoOutput:
                 cv2.imshow('frame', frame)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
-            if frame_index == 1800:
-                self.out.release()
-                break
+
             if self.save_video and frame_index % self.save_divisor == 0:
                 self.out.write(frame)
                 
@@ -100,3 +101,8 @@ class VideoOutput:
         return ((frame_index % self.display_divisor == 0 or 
                 frame_index % self.save_divisor == 0) and
                 (abs(GV.angles[frame_index] + 90) <= 10))
+        
+    def get_recently_extruded_material_img(self, raw_frame, extrusion_box_coords):
+        sub_img = helpers.crop_box_on_image(extrusion_box_coords, raw_frame)
+        sub_img_with_gmms = preprocessing.gmms_preprocess_image(sub_img, 6)
+        return sub_img, sub_img_with_gmms
