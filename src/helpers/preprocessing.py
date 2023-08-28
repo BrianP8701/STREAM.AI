@@ -17,14 +17,7 @@
 from PIL import Image, ImageOps, ImageFilter
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
-import matplotlib.pyplot as plt
-import os
-import random
-from torchvision.transforms import functional as F
-import shutil
 
 '''
 Gaussian Mixture Model Preprocessing with Extra Sensitivty for Material

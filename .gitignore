@@ -7,3 +7,5 @@ test.py
 **/__pycache__/
 
 my_constants.py
+
+test/

@@ -2,8 +2,7 @@
 This file contains functions that parse gcode files and return a list of bed locations,
 and any other gcode related functions.
 '''
-import src.helper_functions as hf
-import src.constants as c
+import src.helpers.helper_functions as hf
 import numpy as np
 import math
 import warnings
@@ -20,7 +19,7 @@ Output:
                 [a, b, c, d, e ...]
     corner_indices: list of indices in point_list that are corners
 '''
-def gcode_parser(gcode_path: str, acceleration: float, fps: int):
+def gcode_parser(gcode_path: str, acceleration: float, fps: int, time_k: float):
 
     # List of [x, y, z, speed]
     corners = simplify_gcode(gcode_path)
@@ -63,7 +62,7 @@ def gcode_parser(gcode_path: str, acceleration: float, fps: int):
         
         # In milliseconds
         time_for_move, achieved_final_speed = how_long(abs(distance), abs(speed), abs(final_speed), abs(max_speed), acceleration)
-        time_for_move *= c.TIME_K
+        time_for_move *= time_k
         achieved_final_velocity = hf.normalize(displacement) * achieved_final_speed
         
         frames_for_move = int(time_for_move * fps + leftover_frames)

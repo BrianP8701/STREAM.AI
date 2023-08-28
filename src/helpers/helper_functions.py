@@ -2,12 +2,10 @@
 This file contains helper functions that are used in multiple places.
 '''
 import numpy as np
-from PIL import Image
 import cv2
 import sys
 import os
 import json
-import statsmodels.api as sm
 import math
 
 def parse_file(filename):
@@ -395,46 +393,6 @@ def compute_slope_from_range(coords: list, range_val: float) -> float:
     
     return slope
 
-
-def filter_points_by_x_range(points, x_min, x_max):
-    """
-    Filters the list of [x, y] coordinates to include only those with x values 
-    within the specified range [x_min, x_max], inclusive.
-    
-    Parameters:
-    - points: List of [x,y] coordinates in ascending order of x.
-    - x_min: Lower bound of the x range.
-    - x_max: Upper bound of the x range.
-    
-    Returns:
-    - Filtered list of [x,y] coordinates in the same ascending order.
-    """
-    return [point for point in points if x_min <= point[0] <= x_max]
-
-
-def piecewise_linear_regression(x_coords, y_coords, sensitivity, segment_count=2):
-    segment_length = len(x_coords) // segment_count
-    
-    prev_slope = None
-    
-    for i in range(segment_count):
-        x_segment = x_coords[i*segment_length:(i+1)*segment_length]
-        y_segment = y_coords[i*segment_length:(i+1)*segment_length]
-        
-        # Fit linear regression to the segment
-        model = sm.OLS(y_segment, sm.add_constant(x_segment)).fit()
-        slope = model.params[1]
-        
-        if prev_slope is not None:
-            print(f'Slope difference: {abs(slope - prev_slope)}')
-        
-        # Compare the slope with the previous segment's slope
-        if prev_slope is not None and abs(slope - prev_slope) > sensitivity:
-            return True, x_segment[len(x_segment) // 2]
-        
-        prev_slope = slope
-
-    return False, None
 
 def find_index(lst, x):
     """Return the index of the first number in lst that is >= x."""

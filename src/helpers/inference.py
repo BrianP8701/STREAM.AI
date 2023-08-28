@@ -2,8 +2,7 @@
 This file contains functions that perform object detection or classification.
 '''
 from src.YOLOv8.inference import Inference
-import src.MobileNetv3.inference as mobilenet
-import src.constants as c
+import src.MobileNetv3.inference as Mobilenet
 import cv2
 
 # inf = Inference(c.YOLO_PATH)
@@ -17,7 +16,7 @@ def yolo_inference(img, model):
 
 # model = mobilenet.load_model('src2/MobileNetv3/mob_l_gmms2_finetune.pt')
 def mobile_inference(img, model):
-    image_class = mobilenet.infer_image(img, model)
+    image_class = Mobilenet.infer_image(img, model)
     
     if image_class == 0: image_class = 'normal'
     elif image_class == 1: image_class = 'over'
