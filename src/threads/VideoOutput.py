@@ -57,9 +57,7 @@ class VideoOutput:
                 cv2.imshow('frame', frame)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
-            if frame_index == 1800:
-                self.out.release()
-                break
+
             if self.save_video and frame_index % self.save_divisor == 0:
                 self.out.write(frame)
                 
