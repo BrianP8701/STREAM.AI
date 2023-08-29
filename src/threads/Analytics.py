@@ -8,8 +8,6 @@ class Analytics:
         pass
     
     # Runs MobileNet to get extrusion class
-    def get_extrusion_class(self, extrusion_box_coords, raw_frame):
-        sub_img = helpers.crop_box_on_image(extrusion_box_coords, raw_frame)
-        sub_img = preprocessing.gmms_preprocess_image(sub_img, 6)
-        extrusion_class = Mobilenet.infer_image(sub_img, GV.mobile_model)
+    def get_extrusion_class(self, img):
+        extrusion_class = Mobilenet.infer_image(img, GV.mobile_model)
         return extrusion_class

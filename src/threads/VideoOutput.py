@@ -7,6 +7,7 @@
 import src.threads.global_vars as GV
 import src.helpers.helper_functions as helpers
 import src.helpers.drawing_functions as d
+import src.helpers.preprocessing as preprocessing
 from src.threads.Analytics import Analytics
 import queue
 import cv2
@@ -45,8 +46,9 @@ class VideoOutput:
                     
                     frame = d.write_text_on_image(frame, f'{GV.angles[frame_index]}', position=(200,200))
 
-                    if frame_index % self.display_divisor == 0 or frame_index % self.save_divisor == 0: # Only run inference when displaying or saving frame
-                        extrusion_class = self.Analytics.get_extrusion_class(extrusion_box_coords, raw_frame)
+                    if self.displaying_saving_and_visible_material(frame_index): # Only run inference when displaying or saving frame
+                        img = self.get_recently_extruded_material_img(raw_frame, extrusion_box_coords)
+                        extrusion_class = self.Analytics.get_extrusion_class(img)
                         self.draw_extrusion_class(frame, extrusion_class)
                 
             # Resize image for faster processing
@@ -97,4 +99,8 @@ class VideoOutput:
     def displaying_saving_and_visible_material(self, frame_index):
         return ((frame_index % self.display_divisor == 0 or 
                 frame_index % self.save_divisor == 0) and
-                (abs(GV.angles[frame_index] + 90) <= 10))
+                (abs(GV.angles[frame_index] + 90) >= 10))
+        
+    def get_recently_extruded_material_img(self, raw_frame, extrusion_box_coords):
+        img = helpers.crop_box_on_image(extrusion_box_coords, raw_frame)
+        return img
