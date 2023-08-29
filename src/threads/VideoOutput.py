@@ -1,8 +1,7 @@
 '''
-    Output is responsible for displaying the video and saving the video.
+    VideoOutput is responsible for displaying the video and saving the video.
     
-    Alongside displaying and saving the video, Output also runs MobileNet 
-    to get the extrusion class and draws labels on the video.
+    It also draws labels and boxes to help visualize the tracker and classification
 '''
 import src.threads.global_vars as GV
 import src.helpers.helper_functions as helpers
@@ -30,22 +29,20 @@ class VideoOutput:
         frame_index = 0
         while True:
             try:
-                raw_frame = GV.video_queue.get(timeout=10)
+                raw_frame = GV.video_queue.get(timeout=10) # Unedited frame
             except queue.Empty:
                 helpers.print_text('End of tracker', 'red')
                 break
             
-            frame = raw_frame.copy()
-            frame = d.write_text_on_image(frame, f'Frame: {frame_index}', )
-                
+            frame = raw_frame.copy() # Frame with boxes and labels
+            
+            # Draw boxes and labels
+            d.write_text_on_image(frame, f'Frame: {frame_index}', )
             if self.can_draw_box(frame_index):
                 self.draw_tip_box(frame, frame_index)
                 if len(GV.angles) > frame_index:
                     line = self.draw_line(frame, frame_index)
                     extrusion_box_coords = self.draw_extrusion_box(frame, frame_index, line)
-                    
-                    frame = d.write_text_on_image(frame, f'{GV.angles[frame_index]}', position=(200,200))
-
                     if self.displaying_saving_and_visible_material(frame_index): # Only run inference when displaying or saving frame
                         img = self.get_recently_extruded_material_img(raw_frame, extrusion_box_coords)
                         extrusion_class = self.Analytics.get_extrusion_class(img)
@@ -59,7 +56,7 @@ class VideoOutput:
                 cv2.imshow('frame', frame)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
-
+            # Save video
             if self.save_video and frame_index % self.save_divisor == 0:
                 self.out.write(frame)
                 

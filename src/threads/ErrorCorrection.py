@@ -14,7 +14,7 @@ class ErrorCorrection:
         else: return
          
         screen_temporal_offset = frame - predicted_time_frame
-        #GV.screen_predictions, GV.bed_predictions, GV.angles, GV.corner_indices = helpers.time_travel(GV.screen_predictions, GV.bed_predictions, GV.angles, GV.corner_indices, frame, screen_temporal_offset)
+        GV.screen_predictions, GV.bed_predictions, GV.angles, GV.corner_indices = helpers.time_travel(GV.screen_predictions, GV.bed_predictions, GV.angles, GV.corner_indices, frame, screen_temporal_offset)
 
     def spatial_thread(self, frame, real_screen_tip):
         spatial_offset = [real_screen_tip[0] - GV.screen_predictions[frame][0], real_screen_tip[1] - GV.screen_predictions[frame][1]]

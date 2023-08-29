@@ -9,7 +9,6 @@ import src.helpers.inference as inference
 import src.threads.constants as c
 import time
 import gc
-from pympler import asizeof
 
 class Initialization:
     def __init__(self):
