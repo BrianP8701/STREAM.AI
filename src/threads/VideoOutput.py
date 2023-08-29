@@ -44,9 +44,10 @@ class VideoOutput:
                     line = self.draw_line(frame, frame_index)
                     extrusion_box_coords = self.draw_extrusion_box(frame, frame_index, line)
                     if self.displaying_saving_and_visible_material(frame_index): # Only run inference when displaying or saving frame
-                        img = self.get_recently_extruded_material_img(raw_frame, extrusion_box_coords)
-                        extrusion_class = self.Analytics.get_extrusion_class(img)
+                        img, img_with_gmms = self.get_recently_extruded_material_img(raw_frame, extrusion_box_coords)
+                        extrusion_class = self.Analytics.get_extrusion_class(img_with_gmms)
                         self.draw_extrusion_class(frame, extrusion_class)
+                        GV.data_queue.put((img, img_with_gmms, extrusion_class))
                 
             # Resize image for faster processing
             if self.save_video or self.display_video:
@@ -99,5 +100,6 @@ class VideoOutput:
                 (abs(GV.angles[frame_index] + 90) >= 10))
         
     def get_recently_extruded_material_img(self, raw_frame, extrusion_box_coords):
-        img = helpers.crop_box_on_image(extrusion_box_coords, raw_frame)
-        return img
+        sub_img = helpers.crop_box_on_image(extrusion_box_coords, raw_frame)
+        sub_img_with_gmms = preprocessing.gmms_preprocess_image(sub_img, 6)
+        return sub_img, sub_img_with_gmms

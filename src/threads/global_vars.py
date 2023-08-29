@@ -40,3 +40,6 @@ corner_indices = [] # Indices of corners in bed predictions
 # [[frame, offset], ...]
 x_spatial_offsets = []
 y_spatial_offsets = []
+
+# Used by data collection thread to receive data from tracking thread
+data_queue = queue.Queue() 
