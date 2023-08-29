@@ -112,7 +112,8 @@ class SignalStream:
                 break
             else:
                 if was_previous_length_zero and len(self.signals_not_saved_to_initialization_buffer) == 0:
-                    GV.initialization_video_buffer.clear()
+                    try: GV.initialization_video_buffer.clear()
+                    except: pass
                     was_previous_length_zero = False
                     
                 if len(self.signals_not_saved_to_initialization_buffer) == 0:

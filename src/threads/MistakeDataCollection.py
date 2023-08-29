@@ -26,7 +26,7 @@ class MistakeDataCollection:
             time.sleep(1)
         while True:
             try:
-                img, img_with_gmms, extrusion_class = self.data_queue.get(timeout=10)
+                img, img_with_gmms, extrusion_class = self.data_queue.get()
                 self.process_data(img, img_with_gmms, extrusion_class)
             except queue.Empty:
                 helpers.print_text('Data is not streaming in', 'red')

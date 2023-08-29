@@ -38,7 +38,6 @@ class VideoOutput:
             
             # Draw boxes and labels
             d.write_text_on_image(frame, f'Frame: {frame_index}', )
-            d.write_text_on_image(frame, f'{GV.angles[frame_index]}', position=(200,200), font_scale=2)
             if self.can_draw_box(frame_index):
                 self.draw_tip_box(frame, frame_index)
                 if len(GV.angles) > frame_index:
