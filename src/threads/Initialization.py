@@ -9,7 +9,6 @@ import src.helpers.inference as inference
 import src.threads.constants as c
 import time
 import gc
-from pympler import asizeof
 
 class Initialization:
     def __init__(self):
@@ -81,7 +80,7 @@ class Initialization:
                 continue
             
             break
-        
+
         if leftmost_x_frame > rightmost_x_frame: 
             GV.yolo_history.append([rightmost_x_frame, helpers.get_center_of_box(rightmost_box)])
             GV.yolo_history.append([leftmost_x_frame, helpers.get_center_of_box(leftmost_box)])
@@ -100,16 +99,16 @@ class Initialization:
         gc.collect()
         self.initialize_screen_predictions(first_signal_index)
 
-    def initialize_screen_predictions(self, min_index):
+    def initialize_screen_predictions(self, first_signal_index):
         first_yolo = GV.yolo_history[0]
         first_yolo_frame_index = first_yolo[0]
-        initial_first_yolo_prediction_index = GV.corner_indices[min_index]
-
+        first_signals_frame_index = GV.corner_indices[first_signal_index]
+        
         # Align predictions with first signal
-        bed_predictions_reindex = first_yolo_frame_index - initial_first_yolo_prediction_index - 1 #initial_first_yolo_prediction_index
-        GV.bed_predictions = helpers.modify_list(GV.bed_predictions, bed_predictions_reindex)
-        GV.angles = helpers.modify_list(GV.angles, bed_predictions_reindex)
-        GV.corner_indices = [corner_index + bed_predictions_reindex for corner_index in GV.corner_indices]
+        predictions_reindex = first_yolo_frame_index - first_signals_frame_index - 1 #initial_first_yolo_prediction_index
+        GV.bed_predictions = helpers.modify_list(GV.bed_predictions, predictions_reindex)
+        GV.angles = helpers.modify_list(GV.angles, predictions_reindex)
+        GV.corner_indices = [corner_index + predictions_reindex for corner_index in GV.corner_indices]
         
         # Fill the screen_predictions list with [-1, -1] for all frames before first yolo
         GV.screen_predictions = []

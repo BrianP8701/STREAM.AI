@@ -42,5 +42,5 @@ class ErrorCorrection:
                     helpers.print_text('Adjust Y spatially', 'green')
                     for screen_prediction in GV.screen_predictions[frame:]:
                         screen_prediction[1] += average_spatial_offset
-                    current_y += average_spatial_offset
+                    GV.current_y += average_spatial_offset
                     GV.y_spatial_offsets.clear()       

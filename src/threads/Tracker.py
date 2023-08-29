@@ -1,4 +1,7 @@
-# src/threads/Tracker.py
+'''
+    Tracker is the main class that handles the entire tracking process.
+    It is responsible for starting all the threads.
+'''
 import threading
 import src.helpers.helper_functions as helpers
 import src.helpers.gcode_functions as g

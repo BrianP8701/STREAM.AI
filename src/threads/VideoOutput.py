@@ -1,12 +1,12 @@
 '''
-    Output is responsible for displaying the video and saving the video.
+    VideoOutput is responsible for displaying the video and saving the video.
     
-    Alongside displaying and saving the video, Output also runs MobileNet 
-    to get the extrusion class and draws labels on the video.
+    It also draws labels and boxes to help visualize the tracker and classification
 '''
 import src.threads.global_vars as GV
 import src.helpers.helper_functions as helpers
 import src.helpers.drawing_functions as d
+import src.helpers.preprocessing as preprocessing
 from src.threads.Analytics import Analytics
 import queue
 import cv2
@@ -30,27 +30,24 @@ class VideoOutput:
         frame_index = 0
         while True:
             try:
-                raw_frame = GV.video_queue.get(timeout=10)
+                raw_frame = GV.video_queue.get(timeout=10) # Unedited frame
             except queue.Empty:
                 helpers.print_text('End of tracker', 'red')
                 break
             
-            frame = raw_frame.copy()
-            frame = d.write_text_on_image(frame, f'Frame: {frame_index}', )
-                
+            frame = raw_frame.copy() # Frame with boxes and labels
+            
+            # Draw boxes and labels
+            d.write_text_on_image(frame, f'Frame: {frame_index}', )
             if self.can_draw_box(frame_index):
                 self.draw_tip_box(frame, frame_index)
                 if len(GV.angles) > frame_index:
                     line = self.draw_line(frame, frame_index)
                     extrusion_box_coords = self.draw_extrusion_box(frame, frame_index, line)
-                    
-                    frame = d.write_text_on_image(frame, f'{GV.angles[frame_index]}', position=(200,200))
-
-                    if frame_index % self.display_divisor == 0 or frame_index % self.save_divisor == 0: # Only run inference when displaying or saving frame
-                        recently_extruded_material_img, recently_extruded_material_img_with_gmms = self.get_recently_extruded_material_img(raw_frame, extrusion_box_coords)
-                        extrusion_class = self.Analytics.get_extrusion_class(recently_extruded_material_img_with_gmms)
+                    if self.displaying_saving_and_visible_material(frame_index): # Only run inference when displaying or saving frame
+                        img, img_with_gmms = self.get_recently_extruded_material_img(raw_frame, extrusion_box_coords)
+                        extrusion_class = self.Analytics.get_extrusion_class(img_with_gmms)
                         self.draw_extrusion_class(frame, extrusion_class)
-                        GV.data_queue.put((recently_extruded_material_img, recently_extruded_material_img_with_gmms, extrusion_class))
                 
             # Resize image for faster processing
             if self.save_video or self.display_video:
@@ -60,7 +57,7 @@ class VideoOutput:
                 cv2.imshow('frame', frame)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
-
+            # Save video
             if self.save_video and frame_index % self.save_divisor == 0:
                 self.out.write(frame)
                 
@@ -100,7 +97,7 @@ class VideoOutput:
     def displaying_saving_and_visible_material(self, frame_index):
         return ((frame_index % self.display_divisor == 0 or 
                 frame_index % self.save_divisor == 0) and
-                (abs(GV.angles[frame_index] + 90) <= 10))
+                (abs(GV.angles[frame_index] + 90) >= 10))
         
     def get_recently_extruded_material_img(self, raw_frame, extrusion_box_coords):
         sub_img = helpers.crop_box_on_image(extrusion_box_coords, raw_frame)
