@@ -38,6 +38,7 @@ class VideoOutput:
             
             # Draw boxes and labels
             d.write_text_on_image(frame, f'Frame: {frame_index}', )
+            d.write_text_on_image(frame, f'{GV.angles[frame_index]}', position=(200,200), font_scale=2)
             if self.can_draw_box(frame_index):
                 self.draw_tip_box(frame, frame_index)
                 if len(GV.angles) > frame_index:
@@ -89,7 +90,7 @@ class VideoOutput:
         frame = d.write_text_on_image(frame, extrusion_class, position=(500, 300), font_scale=5, thickness=6)
         
     def draw_extrusion_box(self, frame, frame_index, line):
-        box = helpers.crop_in_direction(GV.screen_predictions[frame_index], line)
+        box = helpers.crop_in_direction(GV.screen_predictions[frame_index], line, GV.angles[frame_index])
         box = [round(box[0]), round(box[1]), round(box[2]), round(box[3])]
         frame = d.draw_return(frame, box[0], box[1], box[2], box[3], color=(0, 255, 0), thickness=3)
         return box

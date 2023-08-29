@@ -412,9 +412,13 @@ def get_line(point, angle):
     return [round(point[0]), round(point[1]), round(point[0]+angle_vector[0]), round(point[1]-angle_vector[1])]
 
 # Crops image in direction of angle. (For tracking the tip's extruded material)
-def crop_in_direction(tip, line):
+def crop_in_direction(tip, line, angle):
     vector = [line[2] - line[0], line[3] - line[1]]
     center_of_new_box = [tip[0] - vector[0] * 0.8, tip[1] - vector[1] * 0.8]
+    if 0 <= angle <= 30 or 150 <= angle <= 180:
+        center_of_new_box = [center_of_new_box[0], center_of_new_box[1]+10]
+    elif 70 <= angle <= 110:
+        center_of_new_box = [center_of_new_box[0], center_of_new_box[1]-20]
     box = get_bounding_box(center_of_new_box, 85)
     return box
 
