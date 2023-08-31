@@ -30,6 +30,7 @@ class VideoOutput:
         while True:
             try:
                 raw_frame = GV.video_queue.get(timeout=10) # Unedited frame
+                print(len(GV.video_queue.queue))
             except queue.Empty:
                 helpers.print_text('End of tracker', 'red')
                 break
@@ -43,7 +44,7 @@ class VideoOutput:
                 if len(GV.angles) > frame_index:
                     line = self.draw_line(frame, frame_index)
                     extrusion_box_coords = self.draw_extrusion_box(frame, frame_index, line)
-                    if self.displaying_saving_and_visible_material(frame_index): # Only run inference when displaying or saving frame
+                    if self.displaying_saving_and_visible_material(frame_index) and len(GV.video_queue.queue) < 2: # Only run inference when displaying or saving frame and when there is no backlog of frames
                         img, img_with_gmms = self.get_recently_extruded_material_img(raw_frame, extrusion_box_coords)
                         extrusion_class = self.Analytics.get_extrusion_class(img_with_gmms)
                         self.draw_extrusion_class(frame, extrusion_class)
