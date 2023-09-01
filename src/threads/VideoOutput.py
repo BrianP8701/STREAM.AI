@@ -44,10 +44,13 @@ class VideoOutput:
                 if len(GV.angles) > frame_index:
                     line = self.draw_line(frame, frame_index)
                     extrusion_box_coords = self.draw_extrusion_box(frame, frame_index, line)
-                    if self.displaying_saving_and_visible_material(frame_index): # Only run inference when displaying or saving frame
+                    if self.displaying_saving_and_visible_material(frame_index) and len(GV.video_queue.queue) < 2: # Only run inference when displaying or saving frame and when there is no backlog of frames
                         img, img_with_gmms = self.get_recently_extruded_material_img(raw_frame, extrusion_box_coords)
                         extrusion_class = self.Analytics.get_extrusion_class(img_with_gmms)
                         self.draw_extrusion_class(frame, extrusion_class)
+                        GV.data_queue.put((img, img_with_gmms, extrusion_class))
+                        GV.measure_speed_queue.put(frame_index)
+                        GV.measure_classification_queue.put([frame_index, extrusion_class])
                 
             # Resize image for faster processing
             if self.save_video or self.display_video:
@@ -89,7 +92,7 @@ class VideoOutput:
         frame = d.write_text_on_image(frame, extrusion_class, position=(500, 300), font_scale=5, thickness=6)
         
     def draw_extrusion_box(self, frame, frame_index, line):
-        box = helpers.crop_in_direction(GV.screen_predictions[frame_index], line)
+        box = helpers.crop_in_direction(GV.screen_predictions[frame_index], line, GV.angles[frame_index])
         box = [round(box[0]), round(box[1]), round(box[2]), round(box[3])]
         frame = d.draw_return(frame, box[0], box[1], box[2], box[3], color=(0, 255, 0), thickness=3)
         return box

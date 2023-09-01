@@ -25,13 +25,26 @@ class MistakeDataCollection:
         while not GV.tracking: # Wait for tracking to start
             time.sleep(1)
         while True:
-            img, img_with_gmms, extrusion_class = self.data_queue.get(timeout=10)
-            self.process_data(img, img_with_gmms, extrusion_class)
+            try:
+                img, img_with_gmms, extrusion_class = self.data_queue.get()
+                self.process_data(img, img_with_gmms, extrusion_class)
+            except queue.Empty:
+                helpers.print_text('Data is not streaming in', 'red')
+                break
+            
 
     
     def process_data(self, img, img_with_gmms, extrusion_class):
-        print(extrusion_class)
-        print(img.shape)
-        print(img_with_gmms.shape)
         # Write some code here
+        print(type(img))
+        print(type(extrusion_class))
+        print(extrusion_class)
+        
+        
+        self.other_method(img)
         pass
+    
+    def other_method(self, img):
+        pass
+    
+    

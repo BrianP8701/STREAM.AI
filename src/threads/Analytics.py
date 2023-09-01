@@ -9,5 +9,6 @@ class Analytics:
     
     # Runs MobileNet to get extrusion class
     def get_extrusion_class(self, img):
+        print(img.shape)
         extrusion_class = Mobilenet.infer_image(img, GV.mobile_model)
         return extrusion_class

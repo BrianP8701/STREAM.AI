@@ -7,33 +7,43 @@ There are many sources of error in tracking the tip. To counter these we created
   - [Short Written Report](https://docs.google.com/document/d/1MKXKMUR9cR9eQsvC8zTeiHC3NjDDgb_jMu9w_f6AbJg/edit)
   - [Video Presentation](https://youtu.be/gBybSietDuw)
 
+## Pre-requisites
+- Python >= 3.x
+- pip
 
-## Setup Instructions
+## Installation Steps
 
-### Prerequisites
-
-- Make sure you have `conda` installed. If not, [download and install Miniconda or Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html).
-
-### Setting up the Environment
-
-1. Clone this repository:
+### Clone the Repository
 ```bash
-git clone https://github.com/BrianP8701/STREAM.AI
-cd [STREAM_AI_REPO_DIRECTORY]
+git clone https://github.com/yourusername/yourproject.git](https://github.com/BrianP8701/STREAM.AI.git
+cd [Path to this project]
 ```
+### Create a Virtual Environment
 
-2. Recreate the conda environment from the provided `environment.yml`:
+For macOS and Linux:
 ```bash
-conda env create -f environment.yml
+python3 -m venv myenv
 ```
-
-3. Activate the newly created environment:
+For Windows:
+```cmd
+python -m venv myenv
+```
+### Activate the Virtual Environment
+For macOS and Linux:
 ```bash
-conda activate STREAM_AI
+source myenv/bin/activate
+```
+For Windows:
+```cmd
+.\myenv\Scripts\activate
+```
+### Install Dependencies
+```bash
+pip install -r requirements.txt
 ```
 
 ## Usage
-
+To run the system, simply choose your video, gcode and signals path on main.py and run.
 
 ## Contributing
 
