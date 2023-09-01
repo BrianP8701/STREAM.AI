@@ -30,7 +30,6 @@ class VideoOutput:
         while True:
             try:
                 raw_frame = GV.video_queue.get(timeout=10) # Unedited frame
-                print(len(GV.video_queue.queue))
             except queue.Empty:
                 helpers.print_text('End of tracker', 'red')
                 break
