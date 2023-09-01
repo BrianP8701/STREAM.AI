@@ -1,8 +1,7 @@
 # YOLOHandler.py
-import threading
-import src.threads.global_vars as GV
+import src.variables.global_vars as GV
 import src.helpers.helper_functions as helpers
-import src.threads.constants as c
+import src.variables.constants as c
 
 class ErrorCorrection:
     def __init__(self):

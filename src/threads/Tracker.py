@@ -5,8 +5,8 @@
 import threading
 import src.helpers.helper_functions as helpers
 import src.helpers.gcode_functions as g
-import src.threads.constants as c
-import src.threads.global_vars as GV
+import src.variables.constants as c
+import src.variables.global_vars as GV
 import src.helpers.drawing_functions as d
 import src.helpers.preprocessing as preprocessing
 import src.helpers.inference as inference
@@ -21,7 +21,7 @@ from src.threads.SignalStream import SignalStream
 from src.threads.ErrorCorrection import ErrorCorrection
 from src.threads.Initialization import Initialization
 from src.threads.Analytics import Analytics
-from src.threads.VideoOutput import VideoOutput
+from src.threads.Output import Output
 from src.threads.MistakeDataCollection import MistakeDataCollection
 
 class Tracker:
@@ -33,7 +33,7 @@ class Tracker:
         self.Error_Correction = ErrorCorrection()
         self.Video_Stream = VideoStream(self.video_path)
         self.Signal_Stream = SignalStream(self.signals_path, self.Error_Correction)
-        self.Video_Output = VideoOutput(display_video, display_fps, save_video, save_path, save_fps, resolution_percentage)
+        self.Output = Output(display_video, display_fps, save_video, save_path, save_fps, resolution_percentage)
         self.Mistake_Data_Collection = MistakeDataCollection()
 
     def start(self):
@@ -45,4 +45,4 @@ class Tracker:
         threading.Thread(target=self.Initialization_Handler.start, args=()).start()
         threading.Thread(target=self.Mistake_Data_Collection.data_stream, args=(), daemon=True).start()
         
-        VideoOutput.start(self.Video_Output)
+        Output.start(self.Output)

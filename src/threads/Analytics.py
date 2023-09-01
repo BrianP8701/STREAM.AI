@@ -1,7 +1,7 @@
 import src.helpers.helper_functions as helpers
 import src.MobileNetv3.inference as Mobilenet
 import src.helpers.preprocessing as preprocessing
-import src.threads.global_vars as GV
+import src.variables.global_vars as GV
 
 class Analytics:
     def __init__(self) :

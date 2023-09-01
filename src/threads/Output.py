@@ -1,9 +1,9 @@
 '''
-    VideoOutput is responsible for displaying the video and saving the video.
+    Output is responsible for displaying the video and saving the video.
     
     It also draws labels and boxes to help visualize the tracker and classification
 '''
-import src.threads.global_vars as GV
+import src.variables.global_vars as GV
 import src.helpers.helper_functions as helpers
 import src.helpers.drawing_functions as d
 import src.helpers.preprocessing as preprocessing
@@ -11,7 +11,7 @@ from src.threads.Analytics import Analytics
 import queue
 import cv2
 
-class VideoOutput:
+class Output:
     def __init__(self, display_video, display_fps, save_video, save_path, save_fps, resolution_percentage):
         self.display_video = display_video
         self.save_video = save_video
@@ -68,7 +68,8 @@ class VideoOutput:
         if self.save_video: self.out.release()
         cv2.destroyAllWindows
         
-        helpers.print_text('Analytics thread done', 'red')
+        helpers.print_text('Tracking done', 'red')
+        GV.tracking_done = True
             
     def can_draw_box(self, frame_index):
         return (

@@ -8,7 +8,7 @@
 import time
 import threading
 import src.helpers.helper_functions as helpers
-import src.threads.global_vars as GV
+import src.variables.global_vars as GV
 import src.helpers.inference as inference
 
 class SignalStream:

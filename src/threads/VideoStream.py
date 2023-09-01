@@ -7,7 +7,7 @@
 import time
 import cv2
 import src.helpers.helper_functions as helpers
-import src.threads.global_vars as GV
+import src.variables.global_vars as GV
 
 class VideoStream:
     def __init__(self, video_path):

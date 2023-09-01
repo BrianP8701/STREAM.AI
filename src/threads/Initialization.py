@@ -3,10 +3,10 @@
     
     Initializes and synchronizes predictions with video using YOLO and signals.
 '''
-import src.threads.global_vars as GV
+import src.variables.global_vars as GV
 import src.helpers.helper_functions as helpers
 import src.helpers.inference as inference
-import src.threads.constants as c
+import src.variables.constants as c
 import time
 import gc
 
