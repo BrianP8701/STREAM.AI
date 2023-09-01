@@ -49,6 +49,8 @@ class VideoOutput:
                         extrusion_class = self.Analytics.get_extrusion_class(img_with_gmms)
                         self.draw_extrusion_class(frame, extrusion_class)
                         GV.data_queue.put((img, img_with_gmms, extrusion_class))
+                        GV.measure_speed_queue.put(frame_index)
+                        GV.measure_classification_queue.put([frame_index, extrusion_class])
                 
             # Resize image for faster processing
             if self.save_video or self.display_video:

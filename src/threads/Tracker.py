@@ -29,7 +29,6 @@ class Tracker:
         self.video_path = video_path
         self.gcode_path = gcode_path
         self.signals_path = signals_path
-        
         self.Initialization_Handler = Initialization()
         self.Error_Correction = ErrorCorrection()
         self.Video_Stream = VideoStream(self.video_path)
