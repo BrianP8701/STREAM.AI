@@ -79,7 +79,10 @@ def get_center_of_box(box):
 def get_bounding_box(center, size):
     x, y = center
     half_size = size / 2
-    return [x - half_size, y - half_size, x + half_size, y + half_size]
+    top_left_x = round(x - half_size)
+    top_left_y = round(y - half_size)
+    return [top_left_x, top_left_y, top_left_x + size, top_left_y + size]
+
 
 def get_queue_memory_usage(q):
     temp_list = []

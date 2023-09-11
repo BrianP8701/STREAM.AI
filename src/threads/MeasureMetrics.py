@@ -12,7 +12,7 @@
 '''
 import src.variables.global_vars as GV
 import src.helpers.helper_functions as helpers
-import helpers.metrics as metrics
+import src.helpers.metrics as metrics
 import src.helpers.drawing_functions as d
 import src.helpers.preprocessing as preprocessing
 from src.threads.Analytics import Analytics
@@ -35,13 +35,13 @@ class MeasureMetrics:
         
     def start(self):
         if self.speed:
-            threading.Thread(target=self.measure_speed).start()
+            threading.Thread(target=self.measure_speed, args=()).start()
         if self.ram:
-            threading.Thread(target=self.measure_ram).start()
+            threading.Thread(target=self.measure_ram_usage, args=()).start()
         if self.classification:
-            threading.Thread(target=self.measure_classification).start()
+            threading.Thread(target=self.measure_classification, args=()).start()
         if self.diameter:
-            threading.Thread(target=self.measure_diameter).start()
+            threading.Thread(target=self.measure_diameter, args=()).start()
 
     def measure_speed(self):
         '''
@@ -57,6 +57,8 @@ class MeasureMetrics:
                 else:
                     continue
             frame_difference = frame_index - last_frame_index
+            last_frame_index = frame_index
+            print(f'Frame difference: {frame_difference}')
             self.speed_history.append([frame_index, frame_difference])
             
         metrics.update_json_dicts(self.json_path, {"speed": self.speed_history})
@@ -71,6 +73,7 @@ class MeasureMetrics:
                 break
             ram_usage = self.measure_ram()
             self.ram_history.append([start_time, ram_usage])
+            print(f'RAM usage: {ram_usage}')
             elapsed_time = time.time() - start_time
             if elapsed_time < 5:
                 time.sleep(5 - elapsed_time)

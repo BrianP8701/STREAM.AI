@@ -36,4 +36,5 @@ class MistakeDataCollection:
     
     def process_data(self, img, img_with_gmms, extrusion_class):
         # Write some code here
+        print(img.shape)
         pass

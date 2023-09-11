@@ -27,6 +27,8 @@ class Output:
     def start(self):
         helpers.print_text('Analytics thread started', 'blue')
         frame_index = 0
+        
+        # Main Loop until video is done
         while True:
             try:
                 raw_frame = GV.video_queue.get(timeout=10) # Unedited frame

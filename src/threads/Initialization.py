@@ -6,19 +6,23 @@
 import src.variables.global_vars as GV
 import src.helpers.helper_functions as helpers
 import src.helpers.inference as inference
+import src.helpers.gcode_functions as g
 import src.variables.constants as c
 import time
 import gc
 
 class Initialization:
-    def __init__(self):
+    def __init__(self, gcode_path):
         self.initialization_video_buffer = []
+        self.gcode_path = gcode_path
+        print(f'gcode_path: {gcode_path}')
 
     def start(self):
         self.initialize_ratio()
 
     def initialize_ratio(self):
         helpers.print_text('Initialization & Synchronization started', 'blue')
+        GV.bed_predictions, GV.angles, GV.corner_indices = g.gcode_parser(self.gcode_path, c.ACCELERATION, 30, c.TIME_K)
         leftmost_x = 9999999
         leftmost_x_signal_index = 0
         leftmost_img = None
@@ -97,6 +101,8 @@ class Initialization:
         del GV.initialization_video_buffer
         del GV.initialization_frame_signal_buffer
         gc.collect()
+        print(f'first_signal_index: {first_signal_index}')
+        print(f'yolo_history: {GV.yolo_history}')
         self.initialize_screen_predictions(first_signal_index)
 
     def initialize_screen_predictions(self, first_signal_index):
@@ -105,29 +111,27 @@ class Initialization:
         first_signals_frame_index = GV.corner_indices[first_signal_index]
         
         # Align predictions with first signal
-        predictions_reindex = first_yolo_frame_index - first_signals_frame_index - 1 #initial_first_yolo_prediction_index
+        predictions_reindex = first_yolo_frame_index - first_signals_frame_index - 1 
         GV.bed_predictions = helpers.modify_list(GV.bed_predictions, predictions_reindex)
         GV.angles = helpers.modify_list(GV.angles, predictions_reindex)
         GV.corner_indices = [corner_index + predictions_reindex for corner_index in GV.corner_indices]
         
         # Fill the screen_predictions list with [-1, -1] for all frames before first yolo
         GV.screen_predictions = []
-
         for i in range(first_yolo_frame_index):
             GV.screen_predictions.append([-1, -1])
         
         tip = first_yolo[1].copy()
         GV.screen_predictions.append(tip.copy())
-        
         for i in range(first_yolo_frame_index, len(GV.bed_predictions)):
             x_millimeter_change = GV.bed_predictions[i-1][0] - GV.bed_predictions[i][0]
             z_millimeter_change = GV.bed_predictions[i-1][2] - GV.bed_predictions[i][2]
-                            
+            
             tip[0] -= x_millimeter_change * GV.ratio
             tip[1] += z_millimeter_change * GV.ratio
             
             GV.screen_predictions.append([round(num) for num in tip.copy()])
-        
+
         GV.tracking = True
         # Clear and free memory of frames (Was holding frames to be looked back at for this method)
         helpers.print_text('Initialization & Synchronization Done', 'green')
