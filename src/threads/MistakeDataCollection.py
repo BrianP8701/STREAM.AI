@@ -35,15 +35,15 @@ class MistakeDataCollection:
     
     def process_data(self, img, preprocessed_img, extrusion_class, frame_index):
                 
-        helpers.save_image(preprocessed_img, f'test_data/preprocessing/gmms/frame_{frame_index}.jpg')
-        helpers.save_image(img, f'test_data/preprocessing/original/frame_{frame_index}.jpg')
+        # helpers.save_image(preprocessed_img, f'test_data/preprocessing/gmms/frame_{frame_index}.jpg')
+        # helpers.save_image(img, f'test_data/preprocessing/original/frame_{frame_index}.jpg')
 
-        d.write_text_on_image(preprocessed_img, 'test', position=(5, 5), thickness=2, font_scale=0.2)
-        d.write_text_on_image(preprocessed_img, f'{frame_index}', position=(5, 5), thickness=2, font_scale=0.2)
-        d.write_text_on_image(img, f'{frame_index}', position=(5, 5), thickness=2, font_scale=0.2)
-        d.write_text_on_image(img, f'{extrusion_class}', position=(5, 30), thickness=2, font_scale=0.2)
+        # d.write_text_on_image(preprocessed_img, 'test', position=(5, 5), thickness=2, font_scale=0.2)
+        # d.write_text_on_image(preprocessed_img, f'{frame_index}', position=(5, 5), thickness=2, font_scale=0.2)
+        # d.write_text_on_image(img, f'{frame_index}', position=(5, 5), thickness=2, font_scale=0.2)
+        # d.write_text_on_image(img, f'{extrusion_class}', position=(5, 30), thickness=2, font_scale=0.2)
 
-        helpers.save_image(preprocessed_img, 'g.jpg')
-        helpers.save_image(img, 'kk.jpg')
+        # helpers.save_image(preprocessed_img, 'g.jpg')
+        # helpers.save_image(img, 'kk.jpg')
         
         pass
