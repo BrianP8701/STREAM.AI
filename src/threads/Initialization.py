@@ -15,7 +15,6 @@ class Initialization:
     def __init__(self, gcode_path):
         self.initialization_video_buffer = []
         self.gcode_path = gcode_path
-        print(f'gcode_path: {gcode_path}')
 
     def start(self):
         self.initialize_ratio()
@@ -101,8 +100,6 @@ class Initialization:
         del GV.initialization_video_buffer
         del GV.initialization_frame_signal_buffer
         gc.collect()
-        print(f'first_signal_index: {first_signal_index}')
-        print(f'yolo_history: {GV.yolo_history}')
         self.initialize_screen_predictions(first_signal_index)
 
     def initialize_screen_predictions(self, first_signal_index):

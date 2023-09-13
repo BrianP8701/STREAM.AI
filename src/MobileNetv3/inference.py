@@ -61,7 +61,7 @@ def infer_image_simple(img):
     else:
         return 'under'
 
-def infer_image(img, model):    
+def infer_image_with_transforms(img, model):    
     if isinstance(img, str):
         image = Image.open(img)
     else:
@@ -79,3 +79,30 @@ def infer_image(img, model):
         return 'over'
     else:
         return 'under'
+    
+def infer_image(img, model):   
+    '''
+        Expects a transformed, preprocessed numpy array image
+    ''' 
+    
+    with torch.no_grad():
+        output = model(img)
+        predicted_class = torch.argmax(output, dim=1)
+
+    if predicted_class.item() == 0:
+        return 'normal'
+    elif predicted_class.item() == 1:
+        return 'over'
+    else:
+        return 'under'
+    
+def apply_transforms(img):
+    if isinstance(img, str):
+        image = Image.open(img)
+    else:
+        img = Image.fromarray((img * 255).astype(np.uint8))
+        
+    image = preprocess(img)
+    image = image.unsqueeze(0)  # create a mini-batch as expected by the model
+    
+    return image

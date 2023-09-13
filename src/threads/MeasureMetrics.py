@@ -73,7 +73,6 @@ class MeasureMetrics:
                 break
             ram_usage = self.measure_ram()
             self.ram_history.append([start_time, ram_usage])
-            print(f'RAM usage: {ram_usage}')
             elapsed_time = time.time() - start_time
             if elapsed_time < 5:
                 time.sleep(5 - elapsed_time)

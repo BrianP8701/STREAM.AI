@@ -2,6 +2,7 @@ import queue
 import src.helpers.helper_functions as helpers
 import src.variables.global_vars as GV
 import time
+import src.helpers.drawing_functions as d
 '''
     This class receives frames and their corresponding classes as 
     the system is running.
@@ -26,14 +27,23 @@ class MistakeDataCollection:
             time.sleep(1)
         while True:
             try:
-                img, img_with_gmms, extrusion_class = self.data_queue.get()
-                self.process_data(img, img_with_gmms, extrusion_class)
+                img, preprocessed_img, extrusion_class, frame_index = self.data_queue.get()
+                self.process_data(img, preprocessed_img, extrusion_class, frame_index)
             except queue.Empty:
                 helpers.print_text('Data is not streaming in', 'red')
                 break
-            
-
     
-    def process_data(self, img, img_with_gmms, extrusion_class):
-        # Write some code here
+    def process_data(self, img, preprocessed_img, extrusion_class, frame_index):
+                
+        helpers.save_image(preprocessed_img, f'test_data/preprocessing/gmms/frame_{frame_index}.jpg')
+        helpers.save_image(img, f'test_data/preprocessing/original/frame_{frame_index}.jpg')
+
+        d.write_text_on_image(preprocessed_img, 'test', position=(5, 5), thickness=2, font_scale=0.2)
+        d.write_text_on_image(preprocessed_img, f'{frame_index}', position=(5, 5), thickness=2, font_scale=0.2)
+        d.write_text_on_image(img, f'{frame_index}', position=(5, 5), thickness=2, font_scale=0.2)
+        d.write_text_on_image(img, f'{extrusion_class}', position=(5, 30), thickness=2, font_scale=0.2)
+
+        helpers.save_image(preprocessed_img, 'g.jpg')
+        helpers.save_image(img, 'kk.jpg')
+        
         pass

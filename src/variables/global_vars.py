@@ -43,7 +43,7 @@ x_spatial_offsets = []
 y_spatial_offsets = []
 
 # Used by data collection thread to receive data from tracking thread
-data_queue = queue.Queue() 
+data_queue = queue.Queue() # [img, img_with_gmms, extrusion_class, frame_index]
 
 # Metric measurement queues
 measure_speed_queue = queue.Queue() # [frame_index] Contains frame indices of MobileNet inference

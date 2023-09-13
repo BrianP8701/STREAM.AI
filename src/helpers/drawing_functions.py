@@ -52,7 +52,6 @@ def write_text_on_image(image_np, text, position=(50, 50), font=cv2.FONT_HERSHEY
     - numpy array: The image with text written on it.
     """
     cv2.putText(image_np, text, position, font, font_scale, color, thickness)
-    return image_np
 
 def plot_points(points_list, destination_path, plot_title='Scatter Plot of Points', x_label='X values', y_label='Y values'):
     """

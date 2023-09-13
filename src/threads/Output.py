@@ -42,16 +42,19 @@ class Output:
             d.write_text_on_image(frame, f'Frame: {frame_index}', )
             if self.can_draw_box(frame_index):
                 self.draw_tip_box(frame, frame_index)
-                if len(GV.angles) > frame_index:
-                    line = self.draw_line(frame, frame_index)
-                    extrusion_box_coords = self.draw_extrusion_box(frame, frame_index, line)
-                    if self.displaying_saving_and_visible_material(frame_index) and len(GV.video_queue.queue) < 2: # Only run inference when displaying or saving frame and when there is no backlog of frames
-                        img, img_with_gmms = self.get_recently_extruded_material_img(raw_frame, extrusion_box_coords)
-                        extrusion_class = self.Analytics.get_extrusion_class(img_with_gmms)
-                        self.draw_extrusion_class(frame, extrusion_class)
-                        GV.data_queue.put((img, img_with_gmms, extrusion_class))
-                        GV.measure_speed_queue.put(frame_index)
-                        GV.measure_classification_queue.put([frame_index, extrusion_class])
+                line = self.draw_line(frame, frame_index)
+                extrusion_box_coords = self.draw_extrusion_box(frame, frame_index, line)
+                if self.infer(frame_index): 
+                    # Preprocess and run MobileNet on image
+                    extrusion_img = self.get_recently_extruded_material(raw_frame, extrusion_box_coords)
+                    gmms_img = self.Analytics.apply_gmms(extrusion_img)
+                    transformed_img = self.Analytics.transform_img(gmms_img)
+                    extrusion_class = self.Analytics.get_extrusion_class(transformed_img)
+                    
+                    self.draw_extrusion_class(frame, extrusion_class)
+                    GV.data_queue.put((extrusion_img, gmms_img, extrusion_class, frame_index))
+                    GV.measure_speed_queue.put(frame_index)
+                    GV.measure_classification_queue.put([frame_index, extrusion_class])
                 
             # Resize image for faster processing
             if self.save_video or self.display_video:
@@ -77,7 +80,8 @@ class Output:
         return (
             GV.tracking and 
             len(GV.screen_predictions) > frame_index and 
-            GV.screen_predictions[frame_index][0] != -1
+            GV.screen_predictions[frame_index][0] != -1 and
+            len(GV.angles) > frame_index
         )
 
     def draw_line(self, frame, frame_index):
@@ -99,12 +103,12 @@ class Output:
         frame = d.draw_return(frame, box[0], box[1], box[2], box[3], color=(0, 255, 0), thickness=3)
         return box
     
-    def displaying_saving_and_visible_material(self, frame_index):
+    def infer(self, frame_index):
         return ((frame_index % self.display_divisor == 0 or 
                 frame_index % self.save_divisor == 0) and
-                (abs(GV.angles[frame_index] + 90) >= 10))
+                (abs(GV.angles[frame_index] + 90) >= 10) and
+                len(GV.video_queue.queue) < 2) # Only run inference when displaying or saving frame and when there is no backlog of frames
         
-    def get_recently_extruded_material_img(self, raw_frame, extrusion_box_coords):
+    def get_recently_extruded_material(self, raw_frame, extrusion_box_coords):
         sub_img = helpers.crop_box_on_image(extrusion_box_coords, raw_frame)
-        sub_img_with_gmms = preprocessing.gmms_preprocess_image(sub_img, 6)
-        return sub_img, sub_img_with_gmms
+        return sub_img

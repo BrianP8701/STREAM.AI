@@ -11,3 +11,11 @@ class Analytics:
     def get_extrusion_class(self, img):
         extrusion_class = Mobilenet.infer_image(img, GV.mobile_model)
         return extrusion_class
+    
+    def transform_img(self, img):
+        img = Mobilenet.apply_transforms(img)
+        return img
+    
+    def apply_gmms(self, img):
+        img = preprocessing.gmms_preprocess_image(img, 6)
+        return img
