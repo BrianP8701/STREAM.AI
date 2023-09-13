@@ -4,7 +4,7 @@
 This project aims to provide a real-time solution to common 3D printing errors, such as over-extrusion, under-extrusion, and inconsistencies caused by bubbles in the extruder. Our system's end goal is to use real-time video, gcode and data from the digital twin sensors to monitor the printing process, track the extruder tip's position, identify printing errors and make real-time adjustments to the print based on the measured width of the extruded material.
 
 There are many sources of error in tracking the tip. To counter these we created methods to detect, process and correct tips. Further details can be found:
-  - [Short Written Report](https://docs.google.com/document/d/1MKXKMUR9cR9eQsvC8zTeiHC3NjDDgb_jMu9w_f6AbJg/edit)
+  - [Short Written Report](https://docs.google.com/document/d/1vwumKr0Bu93e1cg_Y6qv2G6o-ez8gFCLIyPrFaPOw8E/edit?usp=sharing)
   - [Video Presentation](https://youtu.be/gBybSietDuw)
 
 ## Pre-requisites
