@@ -4,6 +4,7 @@ import queue
 from src.YOLOv8.inference import Inference
 import src.MobileNetv3.inference as Mobilenet
 import src.variables.constants as c
+import onnxruntime as ort
 
 video_start_event = threading.Event() # Used to signal when video stream starts
 video_queue = queue.Queue() # Used by tracking thread to save or display video
@@ -19,7 +20,7 @@ start_time = 0 # Time when video starts
 
 # Model Weights
 yolo_model = Inference(c.YOLO_PATH)
-mobile_model = Mobilenet.load_model(c.MOBILE_PATH)
+ort_session = ort.InferenceSession(c.MOBILE_PATH)
 
 yolo_history = [] # [frame, [x1, y1, x2, y2]]
 
@@ -49,3 +50,4 @@ data_queue = queue.Queue() # [img, img_with_gmms, extrusion_class, frame_index]
 measure_speed_queue = queue.Queue() # [frame_index] Contains frame indices of MobileNet inference
 measure_classification_queue = queue.Queue() # [frame_index, extrusion_class] Contains frame indices of MobileNet inference along with the corresponding extrusion class
 measure_diameter_queue = queue.Queue()
+ort_session = ort.InferenceSession('src/MobileNetv3/mob_l_gmms2_finetune.onnx')

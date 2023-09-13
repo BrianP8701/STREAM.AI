@@ -5,7 +5,7 @@ ACCELERATION = 6000
 # Used to adjust calculated time of moves. Adaptively changes for each new video
 TIME_K = 1
 YOLO_PATH = 'src/YOLOv8/best2.onnx'
-MOBILE_PATH = 'src/MobileNetv3/mob_l_gmms2_finetune.pt'
+MOBILE_PATH = 'src/MobileNetv3/mob_l_gmms2_finetune.onnx'
 
 # For temporal error correction
 TIME_TRAVEL_MIN_SIGNALS=5

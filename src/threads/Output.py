@@ -50,7 +50,7 @@ class Output:
                     gmms_img = self.Analytics.apply_gmms(extrusion_img)
                     transformed_img = self.Analytics.transform_img(gmms_img)
                     extrusion_class = self.Analytics.get_extrusion_class(transformed_img)
-                    
+
                     self.draw_extrusion_class(frame, extrusion_class)
                     GV.data_queue.put((extrusion_img, gmms_img, extrusion_class, frame_index))
                     GV.measure_speed_queue.put(frame_index)
